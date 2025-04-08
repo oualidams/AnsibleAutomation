@@ -10,7 +10,7 @@ import UserManagement from "@/components/user-management"
 export default function Home() {
   return (
     <div className="container mx-auto py-6">
-      <h1 className="text-3xl font-bold mb-6">Ansible Server Management Platform</h1>
+      <h1 className="text-3xl font-bold mb-6">Server Management Platform</h1>
 
       <Tabs defaultValue="dashboard" className="w-full">
         <TabsList className="grid grid-cols-7 mb-8">
