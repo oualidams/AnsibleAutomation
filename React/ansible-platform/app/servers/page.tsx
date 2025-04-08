@@ -1,10 +1,16 @@
+"use client"
+
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { PlusCircle, Search } from "lucide-react"
 import { ServerTable } from "@/components/server-table"
+import { useState } from "react"
+import { AddServerModal } from "@/components/add-server"
 
 export default function ServersPage() {
+  const [addServerModalOpen, setAddServerModalOpen] = useState(false)
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -12,7 +18,7 @@ export default function ServersPage() {
           <h1 className="text-2xl font-bold tracking-tight">Servers</h1>
           <p className="text-muted-foreground">Manage your infrastructure and server inventory</p>
         </div>
-        <Button className="gap-2">
+        <Button className="gap-2" onClick={() => setAddServerModalOpen(true)}>
           <PlusCircle className="h-4 w-4" />
           Add Server
         </Button>
@@ -50,6 +56,7 @@ export default function ServersPage() {
           <ServerTable servers={servers.filter((s) => s.environment === "Development")} />
         </TabsContent>
       </Tabs>
+      <AddServerModal open={addServerModalOpen} onOpenChange={setAddServerModalOpen} />
     </div>
   )
 }
@@ -140,4 +147,3 @@ export const servers = [
     lastSeen: "30 minutes ago",
   },
 ]
-

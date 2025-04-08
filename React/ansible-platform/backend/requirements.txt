@@ -6,4 +6,4 @@ passlib==1.7.4
 python-multipart==0.0.6
 SQLAlchemy==2.0.19
 pyjwt==2.7.0
-
+paramiko==2.11.0

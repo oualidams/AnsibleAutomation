@@ -16,6 +16,7 @@ import yaml
 
 from database import get_db, Server, Playbook, Execution, User
 from websocket_handler import websocket_endpoint, start_background_tasks
+from ssh_utils import setup_server_with_ssh
 
 app = FastAPI(title="Ansible Automation API")
 
@@ -73,6 +74,12 @@ class ServerCreate(BaseModel):
 class Token(BaseModel):
   access_token: str
   token_type: str
+
+class SSHSetupRequest(BaseModel):
+  server_name: str
+  server_ip: str
+  username: str
+  password: str
 
 # Authentication functions
 def create_access_token(data: dict, expires_delta: timedelta = None):
@@ -136,6 +143,27 @@ async def create_server(
   db.commit()
   db.refresh(db_server)
   return {"id": db_server.id, "message": "Server created successfully"}
+
+@app.post("/servers/setup-ssh", status_code=status.HTTP_200_OK)
+async def setup_server_ssh(
+  request: SSHSetupRequest,
+  current_user: User = Depends(get_current_user)
+):
+  success, message, key_path = setup_server_with_ssh(
+      request.server_name,
+      request.server_ip,
+      request.username,
+      request.password
+  )
+  
+  if not success:
+      raise HTTPException(status_code=400, detail=message)
+  
+  return {
+      "success": True,
+      "message": message,
+      "key_path": key_path
+  }
 
 # Playbook endpoints
 @app.get("/playbooks", response_model=List[dict])
@@ -288,4 +316,3 @@ async def get_execution(
 @app.get("/")
 async def root():
   return {"message": "Ansible Automation API"}
-

@@ -17,8 +17,8 @@ export default function PlaybooksPage() {
         <div className="flex justify-between items-center">
           <TabsList>
             <TabsTrigger value="all">All Playbooks</TabsTrigger>
-            <TabsTrigger value="recent">Recently Run</TabsTrigger>
-            <TabsTrigger value="favorites">Favorites</TabsTrigger>
+            <TabsTrigger value="recent">Templates</TabsTrigger>
+            <TabsTrigger value="favorites">Configuration</TabsTrigger>
           </TabsList>
         </div>
 
