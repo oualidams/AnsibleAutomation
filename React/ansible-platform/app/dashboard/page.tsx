@@ -2,6 +2,7 @@ import { ServerStats } from "@/components/server-stats"
 import { RecentActivity } from "@/components/recent-activity"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { ServerStatusCards } from "@/components/server-status-cards"
+import  TestMessage  from "../test-message/page"
 
 export default function DashboardPage() {
   return (
@@ -11,6 +12,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <ServerStats />
         <RecentActivity />
+        <TestMessage />
       </div>
     </div>
   )
