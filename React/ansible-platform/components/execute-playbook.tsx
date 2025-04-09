@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -151,7 +151,7 @@ export function ExecutePlaybook({ playbook }) {
               <div className="border rounded-md p-3 max-h-60 overflow-y-auto space-y-2">
                 {isLoading
                   ? // Loading skeletons
-                    Array(4)
+                    Array(5)
                       .fill(0)
                       .map((_, i) => (
                         <div key={i} className="flex items-center space-x-2">

@@ -2,17 +2,17 @@ import { ServerStats } from "@/components/server-stats"
 import { RecentActivity } from "@/components/recent-activity"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { ServerStatusCards } from "@/components/server-status-cards"
-import  TestMessage  from "../test-message/page"
+import DashboardData from "@/components/dashboard_data"
 
 export default function DashboardPage() {
   return (
     <div className="flex flex-col gap-6">
+      <DashboardData/>
       <DashboardHeader />
       <ServerStatusCards />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <ServerStats />
         <RecentActivity />
-        <TestMessage />
       </div>
     </div>
   )
