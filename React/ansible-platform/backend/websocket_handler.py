@@ -1,14 +1,24 @@
 import asyncio
 import json
 import logging
+import uuid
 from datetime import datetime
-from typing import Dict, List, Set, Any, Optional
+from typing import List, Dict, Any, Optional, Set
 from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 
 from database import get_db, Server, Playbook, Execution, User
 
+# Setup logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Active WebSocket connections
+active_connections: List[WebSocket] = []
+
+# Execution history storage
+# In a real app, this would be stored in a database
+execution_history = []
 
 # Store active connections
 class ConnectionManager:
@@ -94,548 +104,1062 @@ class ConnectionManager:
 # Create manager instance
 manager = ConnectionManager()
 
-# WebSocket endpoint
 async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
+    """Handle WebSocket connections and messages"""
+    await websocket.accept()
+    active_connections.append(websocket)
     
     try:
         while True:
-            # Receive and parse message
             data = await websocket.receive_text()
-            try:
-                message = json.loads(data)
-            except json.JSONDecodeError:
-                await manager.send_personal_message(
-                    {"type": "error", "message": "Invalid JSON"},
-                    websocket
-                )
-                continue
-                
-            # Process message based on action
-            action = message.get("action")
+            message = json.loads(data)
+            action = message.get("action", "")
             
-            if action == "subscribe":
-                topic = message.get("topic")
-                if topic:
-                    await manager.subscribe(websocket, topic)
-                    
-            elif action == "unsubscribe":
-                topic = message.get("topic")
-                if topic:
-                    await manager.unsubscribe(websocket, topic)
-                    
-            elif action == "get-servers":
-                # Get servers from database
-                db = next(get_db())
-                try:
-                    servers = db.query(Server).all()
-                    server_list = [
-                        {
-                            "id": server.id,
-                            "name": server.name,
-                            "ip": server.ip,
-                            "environment": server.environment,
-                            "status": server.status
+            if action == "execute-command":
+                # Handle command execution
+                command = message.get("command", "")
+                server_ids = message.get("servers", [])
+                
+                # Create execution record
+                execution_id = str(uuid.uuid4())
+                execution_record = {
+                    "id": execution_id,
+                    "type": "command",
+                    "name": f"Command: {command[:30]}{'...' if len(command) > 30 else ''}",
+                    "command": command,
+                    "servers": [],
+                    "user": "admin",  # In a real app, get from auth
+                    "timestamp": datetime.now().isoformat(),
+                    "status": "running",
+                }
+                
+                # Add to history
+                execution_history.append(execution_record)
+                
+                # Start execution in background
+                asyncio.create_task(
+                    execute_command(websocket, execution_id, command, server_ids)
+                )
+                
+            elif action == "execute-commands":
+                # Handle parallel command execution
+                commands = message.get("commands", [])
+                server_ids = message.get("servers", [])
+                
+                if not commands or not server_ids:
+                    await websocket.send_json({
+                        "type": "error",
+                        "data": {
+                            "message": "No commands or servers specified"
                         }
-                        for server in servers
-                    ]
-                    await manager.send_personal_message(
-                        {"type": "server-list", "data": server_list},
-                        websocket
-                    )
-                finally:
-                    db.close()
-                    
-            elif action == "execute-playbook":
-                playbook_id = message.get("playbookId")
-                target_servers = message.get("targetServers", [])
-                extra_vars = message.get("extraVars", {})
+                    })
+                    continue
                 
-                if not playbook_id or not target_servers:
-                    await manager.send_personal_message(
-                        {"type": "error", "message": "Missing required parameters"},
-                        websocket
-                    )
-                    continue
-                    
-                # Start execution in database
-                db = next(get_db())
-                try:
-                    playbook = db.query(Playbook).filter(Playbook.id == playbook_id).first()
-                    if not playbook:
-                        await manager.send_personal_message(
-                            {"type": "error", "message": "Playbook not found"},
-                            websocket
-                        )
-                        continue
-                        
-                    # Create execution record
-                    execution = Execution(
-                        playbook_id=playbook.id,
-                        user_id=1,  # In a real app, get from authenticated user
-                        target=",".join(str(s) for s in target_servers),
-                        status="running",
-                        start_time=datetime.now()
-                    )
-                    db.add(execution)
-                    db.commit()
-                    db.refresh(execution)
-                    
-                    # Send confirmation
-                    await manager.send_personal_message(
-                        {
-                            "type": "execution-started", 
-                            "data": {
-                                "executionId": str(execution.id),
-                                "status": "running",
-                                "startTime": execution.start_time.isoformat()
-                            }
-                        },
-                        websocket
-                    )
-                    
-                    # Start execution in background
-                    asyncio.create_task(
-                        run_ansible_playbook(
-                            playbook.path,
-                            target_servers,
-                            extra_vars,
-                            execution.id,
-                            db
-                        )
-                    )
-                except Exception as e:
-                    logger.error(f"Error starting execution: {e}")
-                    await manager.send_personal_message(
-                        {"type": "error", "message": str(e)},
-                        websocket
-                    )
-                finally:
-                    db.close()
-                    
-            elif action == "get-execution":
-                execution_id = message.get("executionId")
-                if not execution_id:
-                    await manager.send_personal_message(
-                        {"type": "error", "message": "Missing execution ID"},
-                        websocket
-                    )
-                    continue
-                    
-                # Get execution from database
-                db = next(get_db())
-                try:
-                    execution = db.query(Execution).filter(Execution.id == execution_id).first()
-                    if not execution:
-                        await manager.send_personal_message(
-                            {"type": "error", "message": "Execution not found"},
-                            websocket
-                        )
-                        continue
-                        
-                    playbook = db.query(Playbook).filter(Playbook.id == execution.playbook_id).first()
-                    
-                    # Get target servers
-                    target_servers = execution.target.split(",")
-                    servers = []
-                    for server_id in target_servers:
-                        server = db.query(Server).filter(Server.id == server_id).first()
-                        if server:
-                            servers.append({
-                                "name": server.name,
-                                "status": "running" if execution.status == "running" else "success",
-                                "tasks": {
-                                    "total": playbook.tasks if playbook else 0,
-                                    "completed": 0,
-                                    "failed": 0
-                                }
-                            })
-                    
-                    # Calculate duration
-                    duration = ""
-                    if execution.start_time:
-                        if execution.end_time:
-                            delta = execution.end_time - execution.start_time
-                        else:
-                            delta = datetime.now() - execution.start_time
-                        
-                        seconds = delta.total_seconds()
-                        if seconds < 60:
-                            duration = f"{int(seconds)}s"
-                        else:
-                            minutes = int(seconds // 60)
-                            seconds = int(seconds % 60)
-                            duration = f"{minutes}m {seconds}s"
-                    
-                    # Send execution info
-                    await manager.send_personal_message(
-                        {
-                            "topic": f"execution-{execution_id}",
-                            "type": "execution_info",
-                            "data": {
-                                "id": str(execution.id),
-                                "playbook": playbook.name if playbook else "Unknown",
-                                "status": execution.status,
-                                "progress": 0,
-                                "startTime": execution.start_time.isoformat(),
-                                "duration": duration,
-                                "servers": servers
-                            }
-                        },
-                        websocket
-                    )
-                finally:
-                    db.close()
-            
-            else:
-                await manager.send_personal_message(
-                    {"type": "error", "message": f"Unknown action: {action}"},
-                    websocket
+                # Create execution record for each command
+                execution_records = []
+                for cmd in commands:
+                    execution_id = str(uuid.uuid4())
+                    execution_record = {
+                        "id": execution_id,
+                        "type": "command",
+                        "name": cmd.get("name") or f"Command: {cmd['command'][:30]}{'...' if len(cmd['command']) > 30 else ''}",
+                        "command": cmd["command"],
+                        "servers": [],
+                        "user": "admin",  # In a real app, get from auth
+                        "timestamp": datetime.now().isoformat(),
+                        "status": "running",
+                    }
+                    execution_records.append(execution_record)
+                    execution_history.append(execution_record)
+                
+                # Start parallel execution in background
+                asyncio.create_task(
+                    execute_commands_parallel(websocket, execution_records, server_ids)
                 )
+                
+            elif action == "run-health-check":
+                # Handle health check
+                checks = message.get("checks", [])
+                server_ids = message.get("servers", [])
+                
+                # Create execution record
+                execution_id = str(uuid.uuid4())
+                execution_record = {
+                    "id": execution_id,
+                    "type": "health-check",
+                    "name": "Health Check",
+                    "checks": checks,
+                    "servers": [],
+                    "user": "admin",  # In a real app, get from auth
+                    "timestamp": datetime.now().isoformat(),
+                    "status": "running",
+                }
+                
+                # Add to history
+                execution_history.append(execution_record)
+                
+                # Start health check in background
+                asyncio.create_task(
+                    run_health_check(websocket, execution_id, checks, server_ids)
+                )
+                
+            elif action == "initialize-server":
+                # Handle server initialization
+                server_config = message.get("server", {})
+                
+                # Create execution record
+                execution_id = str(uuid.uuid4())
+                execution_record = {
+                    "id": execution_id,
+                    "type": "initialization",
+                    "name": f"Initialize: {server_config.get('name', 'New Server')}",
+                    "template": server_config.get("osTemplate", "Unknown"),
+                    "servers": [
+                        {
+                            "id": str(uuid.uuid4()),  # Generate ID for new server
+                            "name": server_config.get("name", "New Server"),
+                            "status": "running",
+                            "duration": "0s",
+                        }
+                    ],
+                    "user": "admin",  # In a real app, get from auth
+                    "timestamp": datetime.now().isoformat(),
+                    "status": "running",
+                }
+                
+                # Add to history
+                execution_history.append(execution_record)
+                
+                # Start initialization in background
+                asyncio.create_task(
+                    initialize_server(websocket, execution_id, server_config)
+                )
+                
+            elif action == "initialize-servers":
+                # Handle parallel server initialization
+                servers_config = message.get("servers", [])
+                
+                # Create execution record
+                execution_id = str(uuid.uuid4())
+                execution_record = {
+                    "id": execution_id,
+                    "type": "initialization",
+                    "name": f"Initialize: {len(servers_config)} Servers",
+                    "template": message.get("osTemplate", "Unknown"),
+                    "servers": [
+                        {
+                            "id": str(uuid.uuid4()),  # Generate ID for new server
+                            "name": server.get("name", f"New Server {i+1}"),
+                            "status": "running",
+                            "duration": "0s",
+                        }
+                        for i, server in enumerate(servers_config)
+                    ],
+                    "user": "admin",  # In a real app, get from auth
+                    "timestamp": datetime.now().isoformat(),
+                    "status": "running",
+                }
+                
+                # Add to history
+                execution_history.append(execution_record)
+                
+                # Start initialization in background
+                asyncio.create_task(
+                    initialize_servers_parallel(websocket, execution_id, servers_config)
+                )
+                
+            elif action == "get-execution-history":
+                # Return execution history
+                await websocket.send_json({
+                    "type": "execution-history",
+                    "data": {
+                        "executions": execution_history
+                    }
+                })
+                
+            elif action == "get-server-executions":
+                # Return executions for a specific server
+                server_id = message.get("serverId")
+                if not server_id:
+                    await websocket.send_json({
+                        "type": "error",
+                        "data": {
+                            "message": "No server ID specified"
+                        }
+                    })
+                    continue
+                
+                # Filter executions for this server
+                server_executions = []
+                for execution in execution_history:
+                    for server in execution.get("servers", []):
+                        if server.get("id") == server_id:
+                            server_executions.append({
+                                "executionId": execution["id"],
+                                "type": execution["type"],
+                                "name": execution["name"],
+                                "command": execution.get("command"),
+                                "checks": execution.get("checks"),
+                                "status": server["status"],
+                                "startTime": execution["timestamp"],
+                                "duration": server["duration"],
+                            })
+                
+                await websocket.send_json({
+                    "type": "server-executions",
+                    "data": {
+                        "serverId": server_id,
+                        "executions": server_executions
+                    }
+                })
+                
+            else:
+                await websocket.send_json({
+                    "type": "error",
+                    "data": {
+                        "message": f"Unknown action: {action}"
+                    }
+                })
                 
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
+        active_connections.remove(websocket)
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
-        manager.disconnect(websocket)
+        try:
+            active_connections.remove(websocket)
+        except ValueError:
+            pass
 
-# Mock function to simulate Ansible playbook execution
-async def run_ansible_playbook(
-    playbook_path: str,
-    target_servers: List[str],
-    extra_vars: Dict[str, Any],
-    execution_id: int,
-    db: Session
-):
-    """Simulate running an Ansible playbook with real-time updates"""
-    topic = f"execution-{execution_id}"
-    
+async def execute_command(websocket: WebSocket, execution_id: str, command: str, server_ids: List[str]):
+    """Execute a command on multiple servers"""
     try:
-        # Get playbook and servers
-        playbook = db.query(Playbook).filter(Playbook.id == playbook_path).first()
+        # Get execution record
+        execution = next((e for e in execution_history if e["id"] == execution_id), None)
+        if not execution:
+            return
+        
+        # Get server details (in a real app, fetch from database)
         servers = []
-        for server_id in target_servers:
-            server = db.query(Server).filter(Server.id == server_id).first()
-            if server:
-                servers.append(server)
-        
-        # Send initial log
-        await manager.broadcast_to_topic(
-            topic,
-            {
-                "type": "log",
-                "data": {
-                    "timestamp": datetime.now().isoformat(),
-                    "level": "INFO",
-                    "message": "Playbook execution started"
-                }
-            }
-        )
-        
-        await asyncio.sleep(1)
-        
-        # Send connecting message
-        await manager.broadcast_to_topic(
-            topic,
-            {
-                "type": "log",
-                "data": {
-                    "timestamp": datetime.now().isoformat(),
-                    "level": "INFO",
-                    "message": "Connecting to servers..."
-                }
-            }
-        )
-        
-        # Connect to each server
-        for i, server in enumerate(servers):
-            await asyncio.sleep(0.5)
-            await manager.broadcast_to_topic(
-                topic,
-                {
-                    "type": "log",
-                    "data": {
-                        "timestamp": datetime.now().isoformat(),
-                        "level": "INFO",
-                        "message": f"Connected to {server.name}"
-                    }
-                }
-            )
+        for server_id in server_ids:
+            # Mock server data
+            servers.append({
+                "id": server_id,
+                "name": f"server-{server_id}",
+                "ip": "127.0.0.1"
+            })
             
-            # Update progress
-            progress = int((i + 1) / len(servers) * 20)  # 20% for connection phase
-            await manager.broadcast_to_topic(
-                topic,
-                {
-                    "type": "server_update",
-                    "data": {
-                        "name": server.name,
-                        "status": "running",
-                        "progress": progress
-                    }
-                }
-            )
+            # Add server to execution record
+            execution["servers"].append({
+                "id": server_id,
+                "name": f"server-{server_id}",
+                "status": "running",
+                "duration": "0s"
+            })
         
-        # Simulate tasks for each server
-        task_count = playbook.tasks if playbook else 5
-        for task_num in range(1, task_count + 1):
-            # Send task start message
-            await asyncio.sleep(1)
-            await manager.broadcast_to_topic(
-                topic,
-                {
-                    "type": "log",
-                    "data": {
-                        "timestamp": datetime.now().isoformat(),
-                        "level": "INFO",
-                        "message": f"TASK [{task_num}]: Running task {task_num}"
-                    }
-                }
-            )
+        # Send initial status
+        await websocket.send_json({
+            "type": "command-started",
+            "data": {
+                "executionId": execution_id,
+                "command": command,
+                "servers": [s["name"] for s in servers]
+            }
+        })
+        
+        # Execute command on each server
+        for server in servers:
+            start_time = datetime.now()
             
-            # Run task on each server
-            for server in servers:
-                await asyncio.sleep(0.5 + (task_num % 3) * 0.5)  # Vary task duration
-                
-                # Randomly fail some tasks (for demo purposes)
-                success = True
-                if task_num == 3 and server.name == servers[-1].name:
-                    success = False
-                
-                # Send task result
-                level = "INFO" if success else "ERROR"
-                message = f"{server.name}: ok={task_num} changed=1" if success else f"{server.name}: Failed to execute task {task_num}"
-                
-                await manager.broadcast_to_topic(
-                    topic,
-                    {
-                        "type": "log",
-                        "data": {
-                            "timestamp": datetime.now().isoformat(),
-                            "level": level,
-                            "message": message
-                        }
-                    }
-                )
-                
-                # Update server status
-                server_status = {
-                    "name": server.name,
-                    "tasks": {
-                        "total": task_count,
-                        "completed": task_num if success else task_num - 1,
-                        "failed": 0 if success else 1
-                    }
+            # Update client with progress
+            await websocket.send_json({
+                "type": "command-progress",
+                "data": {
+                    "executionId": execution_id,
+                    "serverId": server["id"],
+                    "serverName": server["name"],
+                    "status": "running",
+                    "output": f"Connecting to {server['name']}...\nExecuting: {command}\n\n"
                 }
-                
-                if not success:
-                    server_status["status"] = "failed"
-                elif task_num == task_count:
-                    server_status["status"] = "success"
+            })
+            
+            # Simulate command execution (in a real app, use SSH)
+            await asyncio.sleep(1 + (hash(server["id"]) % 5))  # Random delay
+            
+            # Determine success or failure (randomly)
+            success = hash(server["id"] + command) % 10 != 0  # 10% chance of failure
+            
+            # Generate mock output
+            output = f"Connecting to {server['name']}...\nExecuting: {command}\n\n"
+            if success:
+                output += f"Command executed successfully on {server['name']}.\n"
+                if "df" in command:
+                    output += "Filesystem      Size  Used Avail Use% Mounted on\n"
+                    output += "udev            7.8G     0  7.8G   0% /dev\n"
+                    output += "tmpfs           1.6G  2.1M  1.6G   1% /run\n"
+                    output += "/dev/sda1        98G   48G   45G  52% /\n"
+                elif "free" in command:
+                    output += "              total        used        free      shared  buff/cache   available\n"
+                    output += "Mem:          16096        4738        8740         754        2617       10302\n"
+                    output += "Swap:          4095           0        4095\n"
                 else:
-                    server_status["status"] = "running"
-                
-                # Calculate overall progress (20% for connection + 80% for tasks)
-                progress = 20 + int((task_num / task_count) * 80)
-                server_status["progress"] = progress
-                
-                await manager.broadcast_to_topic(
-                    topic,
-                    {
-                        "type": "server_update",
-                        "data": server_status
-                    }
-                )
-        
-        # Determine final status
-        any_failed = any(s.name == servers[-1].name for s in servers)  # Last server fails in our simulation
-        final_status = "failed" if any_failed else "success"
-        
-        # Send completion message
-        await asyncio.sleep(1)
-        await manager.broadcast_to_topic(
-            topic,
-            {
-                "type": "log",
+                    output += f"Command completed on {server['name']}\n"
+            else:
+                output += f"Error: Command failed on {server['name']}\n"
+            
+            # Calculate duration
+            end_time = datetime.now()
+            duration_seconds = (end_time - start_time).total_seconds()
+            duration = f"{int(duration_seconds)}s"
+            
+            # Update execution record
+            for s in execution["servers"]:
+                if s["id"] == server["id"]:
+                    s["status"] = "success" if success else "failed"
+                    s["duration"] = duration
+            
+            # Send completion for this server
+            await websocket.send_json({
+                "type": "command-complete",
                 "data": {
-                    "timestamp": datetime.now().isoformat(),
-                    "level": "INFO",
-                    "message": "Playbook execution completed"
+                    "executionId": execution_id,
+                    "serverId": server["id"],
+                    "serverName": server["name"],
+                    "status": "success" if success else "failed",
+                    "output": output,
+                    "duration": duration
                 }
-            }
-        )
+            })
         
-        # Send summary
-        await manager.broadcast_to_topic(
-            topic,
-            {
-                "type": "log",
-                "data": {
-                    "timestamp": datetime.now().isoformat(),
-                    "level": "INFO",
-                    "message": f"Summary: {len(servers)} servers, {len(servers) - (1 if any_failed else 0)} success, {1 if any_failed else 0} failed"
-                }
-            }
-        )
+        # Update overall execution status
+        statuses = [s["status"] for s in execution["servers"]]
+        if all(status == "success" for status in statuses):
+            execution["status"] = "success"
+        elif all(status == "failed" for status in statuses):
+            execution["status"] = "failed"
+        else:
+            execution["status"] = "partial"
         
-        # Update execution record
-        execution = db.query(Execution).filter(Execution.id == execution_id).first()
-        if execution:
-            execution.status = final_status
-            execution.end_time = datetime.now()
-            execution.duration = (execution.end_time - execution.start_time).total_seconds()
-            db.commit()
-        
-        # Send completion event
-        await manager.broadcast_to_topic(
-            topic,
-            {
-                "type": "execution_complete",
-                "data": {
-                    "status": final_status,
-                    "duration": f"{int(execution.duration // 60)}m {int(execution.duration % 60)}s" if execution else "0s"
-                }
+        # Send overall completion
+        await websocket.send_json({
+            "type": "execution-complete",
+            "data": {
+                "executionId": execution_id,
+                "status": execution["status"]
             }
-        )
+        })
         
     except Exception as e:
-        logger.error(f"Error in playbook execution: {e}")
+        logger.error(f"Error executing command: {e}")
         
-        # Send error message
-        await manager.broadcast_to_topic(
-            topic,
-            {
-                "type": "log",
-                "data": {
-                    "timestamp": datetime.now().isoformat(),
-                    "level": "ERROR",
-                    "message": f"Execution error: {str(e)}"
-                }
+        # Update execution record with error
+        if execution:
+            execution["status"] = "failed"
+            for s in execution["servers"]:
+                if s["status"] == "running":
+                    s["status"] = "failed"
+        
+        # Send error to client
+        await websocket.send_json({
+            "type": "execution-error",
+            "data": {
+                "executionId": execution_id,
+                "message": f"Error executing command: {str(e)}"
             }
-        )
+        })
+
+async def execute_commands_parallel(websocket: WebSocket, execution_records: List[Dict], server_ids: List[str]):
+    """Execute multiple commands on multiple servers in parallel"""
+    try:
+        # Get server details (in a real app, fetch from database)
+        servers = []
+        for server_id in server_ids:
+            # Mock server data
+            servers.append({
+                "id": server_id,
+                "name": f"server-{server_id}",
+                "ip": "127.0.0.1"
+            })
+            
+            # Add server to each execution record
+            for execution in execution_records:
+                execution["servers"].append({
+                    "id": server_id,
+                    "name": f"server-{server_id}",
+                    "status": "running",
+                    "duration": "0s"
+                })
+        
+        # Send initial status for each command
+        for execution in execution_records:
+            await websocket.send_json({
+                "type": "command-started",
+                "data": {
+                    "executionId": execution["id"],
+                    "command": execution["command"],
+                    "servers": [s["name"] for s in servers]
+                }
+            })
+        
+        # Execute all commands on all servers in parallel
+        tasks = []
+        for execution in execution_records:
+            for server in servers:
+                task = asyncio.create_task(
+                    execute_single_command(
+                        websocket, 
+                        execution["id"], 
+                        execution["command"], 
+                        server
+                    )
+                )
+                tasks.append(task)
+        
+        # Wait for all tasks to complete
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Process results and update execution records
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                logger.error(f"Error in parallel execution: {result}")
+                continue
+            
+            execution_id, server_id, status, duration = result
+            
+            # Update execution record
+            execution = next((e for e in execution_records if e["id"] == execution_id), None)
+            if execution:
+                for s in execution["servers"]:
+                    if s["id"] == server_id:
+                        s["status"] = status
+                        s["duration"] = duration
+        
+        # Update overall status for each execution
+        for execution in execution_records:
+            statuses = [s["status"] for s in execution["servers"]]
+            if all(status == "success" for status in statuses):
+                execution["status"] = "success"
+            elif all(status == "failed" for status in statuses):
+                execution["status"] = "failed"
+            else:
+                execution["status"] = "partial"
+            
+            # Send overall completion
+            await websocket.send_json({
+                "type": "execution-complete",
+                "data": {
+                    "executionId": execution["id"],
+                    "status": execution["status"]
+                }
+            })
+        
+    except Exception as e:
+        logger.error(f"Error in parallel execution: {e}")
+        
+        # Update all execution records with error
+        for execution in execution_records:
+            execution["status"] = "failed"
+            for s in execution["servers"]:
+                if s["status"] == "running":
+                    s["status"] = "failed"
+        
+        # Send error to client
+        await websocket.send_json({
+            "type": "execution-error",
+            "data": {
+                "message": f"Error in parallel execution: {str(e)}"
+            }
+        })
+
+async def execute_single_command(websocket: WebSocket, execution_id: str, command: str, server: Dict):
+    """Execute a single command on a single server"""
+    try:
+        start_time = datetime.now()
+        
+        # Update client with progress
+        await websocket.send_json({
+            "type": "command-progress",
+            "data": {
+                "executionId": execution_id,
+                "serverId": server["id"],
+                "serverName": server["name"],
+                "status": "running",
+                "output": f"Connecting to {server['name']}...\nExecuting: {command}\n\n"
+            }
+        })
+        
+        # Simulate command execution (in a real app, use SSH)
+        await asyncio.sleep(1 + (hash(server["id"] + command) % 5))  # Random delay
+        
+        # Determine success or failure (randomly)
+        success = hash(server["id"] + command) % 10 != 0  # 10% chance of failure
+        
+        # Generate mock output
+        output = f"Connecting to {server['name']}...\nExecuting: {command}\n\n"
+        if success:
+            output += f"Command executed successfully on {server['name']}.\n"
+            if "df" in command:
+                output += "Filesystem      Size  Used Avail Use% Mounted on\n"
+                output += "udev            7.8G     0  7.8G   0% /dev\n"
+                output += "tmpfs           1.6G  2.1M  1.6G   1% /run\n"
+                output += "/dev/sda1        98G   48G   45G  52% /\n"
+            elif "free" in command:
+                output += "              total        used        free      shared  buff/cache   available\n"
+                output += "Mem:          16096        4738        8740         754        2617       10302\n"
+                output += "Swap:          4095           0        4095\n"
+            else:
+                output += f"Command completed on {server['name']}\n"
+        else:
+            output += f"Error: Command failed on {server['name']}\n"
+        
+        # Calculate duration
+        end_time = datetime.now()
+        duration_seconds = (end_time - start_time).total_seconds()
+        duration = f"{int(duration_seconds)}s"
+        
+        # Send completion for this server
+        await websocket.send_json({
+            "type": "command-complete",
+            "data": {
+                "executionId": execution_id,
+                "serverId": server["id"],
+                "serverName": server["name"],
+                "status": "success" if success else "failed",
+                "output": output,
+                "duration": duration
+            }
+        })
+        
+        # Return result
+        return (execution_id, server["id"], "success" if success else "failed", duration)
+        
+    except Exception as e:
+        logger.error(f"Error executing command on server {server['name']}: {e}")
+        
+        # Send error to client
+        await websocket.send_json({
+            "type": "command-error",
+            "data": {
+                "executionId": execution_id,
+                "serverId": server["id"],
+                "serverName": server["name"],
+                "message": f"Error: {str(e)}"
+            }
+        })
+        
+        # Return failure
+        return (execution_id, server["id"], "failed", "0s")
+
+async def run_health_check(websocket: WebSocket, execution_id: str, checks: List[str], server_ids: List[str]):
+    """Run health checks on multiple servers"""
+    try:
+        # Get execution record
+        execution = next((e for e in execution_history if e["id"] == execution_id), None)
+        if not execution:
+            return
+        
+        # Get server details (in a real app, fetch from database)
+        servers = []
+        for server_id in server_ids:
+            # Mock server data
+            servers.append({
+                "id": server_id,
+                "name": f"server-{server_id}",
+                "ip": "127.0.0.1"
+            })
+            
+            # Add server to execution record
+            execution["servers"].append({
+                "id": server_id,
+                "name": f"server-{server_id}",
+                "status": "running",
+                "duration": "0s"
+            })
+        
+        # Send initial status
+        await websocket.send_json({  "0s"
+            })
+        
+        # Send initial status
+        await websocket.send_json({
+            "type": "health-check-started",
+            "data": {
+                "executionId": execution_id,
+                "checks": checks,
+                "servers": [s["name"] for s in servers]
+            }
+        })
+        
+        # Process each server
+        for server in servers:
+            start_time = datetime.now()
+            
+            # Update client with progress
+            await websocket.send_json({
+                "type": "health-check-progress",
+                "data": {
+                    "executionId": execution_id,
+                    "serverId": server["id"],
+                    "serverName": server["name"],
+                    "progress": 10,
+                    "message": f"Starting health checks on {server['name']}..."
+                }
+            })
+            
+            # Process each check
+            server_results = {}
+            overall_status = "success"
+            
+            for i, check in enumerate(checks):
+                # Update progress
+                progress = 10 + int((i / len(checks)) * 80)
+                await websocket.send_json({
+                    "type": "health-check-progress",
+                    "data": {
+                        "executionId": execution_id,
+                        "serverId": server["id"],
+                        "serverName": server["name"],
+                        "progress": progress,
+                        "message": f"Running {check} check on {server['name']}..."
+                    }
+                })
+                
+                # Simulate check execution (in a real app, use Ansible)
+                await asyncio.sleep(0.5 + (hash(server["id"] + check) % 3))  # Random delay
+                
+                # Determine check result (randomly)
+                rand = hash(server["id"] + check) % 10
+                if rand < 7:  # 70% success
+                    status = "success"
+                    message = f"{check.capitalize()} check passed on {server['name']}"
+                elif rand < 9:  # 20% warning
+                    status = "warning"
+                    overall_status = "warning" if overall_status == "success" else overall_status
+                    message = f"{check.capitalize()} check warning on {server['name']}"
+                else:  # 10% error
+                    status = "error"
+                    overall_status = "failed"
+                    message = f"{check.capitalize()} check failed on {server['name']}"
+                
+                # Add check result
+                server_results[check] = {
+                    "status": status,
+                    "message": message
+                }
+            
+            # Calculate duration
+            end_time = datetime.now()
+            duration_seconds = (end_time - start_time).total_seconds()
+            duration = f"{int(duration_seconds // 60)}m {int(duration_seconds % 60)}s"
+            
+            # Update execution record
+            for s in execution["servers"]:
+                if s["id"] == server["id"]:
+                    s["status"] = overall_status
+                    s["duration"] = duration
+            
+            # Send completion for this server
+            await websocket.send_json({
+                "type": "health-check-server-complete",
+                "data": {
+                    "executionId": execution_id,
+                    "serverId": server["id"],
+                    "serverName": server["name"],
+                    "status": overall_status,
+                    "results": server_results,
+                    "duration": duration
+                }
+            })
+        
+        # Update overall execution status
+        statuses = [s["status"] for s in execution["servers"]]
+        if all(status == "success" for status in statuses):
+            execution["status"] = "success"
+        elif any(status == "failed" for status in statuses):
+            execution["status"] = "failed"
+        else:
+            execution["status"] = "warning"
+        
+        # Send overall completion
+        await websocket.send_json({
+            "type": "health-check-complete",
+            "data": {
+                "executionId": execution_id,
+                "status": execution["status"]
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error running health checks: {e}")
+        
+        # Update execution record with error
+        if execution:
+            execution["status"] = "failed"
+            for s in execution["servers"]:
+                if s["status"] == "running":
+                    s["status"] = "failed"
+        
+        # Send error to client
+        await websocket.send_json({
+            "type": "health-check-error",
+            "data": {
+                "executionId": execution_id,
+                "message": f"Error running health checks: {str(e)}"
+            }
+        })
+
+async def initialize_server(websocket: WebSocket, execution_id: str, server_config: Dict):
+    """Initialize a new server"""
+    try:
+        # Get execution record
+        execution = next((e for e in execution_history if e["id"] == execution_id), None)
+        if not execution:
+            return
+        
+        # Get server from execution record
+        server = execution["servers"][0]
+        
+        # Send initial status
+        await websocket.send_json({
+            "type": "initialization-started",
+            "data": {
+                "executionId": execution_id,
+                "serverName": server["name"]
+            }
+        })
+        
+        # Simulate initialization steps
+        start_time = datetime.now()
+        
+        # Step 1: Establish SSH connection
+        await websocket.send_json({
+            "type": "initialization-progress",
+            "data": {
+                "executionId": execution_id,
+                "serverId": server["id"],
+                "serverName": server["name"],
+                "progress": 10,
+                "message": "Establishing SSH connection..."
+            }
+        })
+        await asyncio.sleep(1)
+        
+        # Step 2: Set up SSH keys
+        await websocket.send_json({
+            "type": "initialization-progress",
+            "data": {
+                "executionId": execution_id,
+                "serverId": server["id"],
+                "serverName": server["name"],
+                "progress": 20,
+                "message": "Setting up SSH keys..."
+            }
+        })
+        await asyncio.sleep(1.5)
+        
+        # Step 3: Install base OS packages
+        await websocket.send_json({
+            "type": "initialization-progress",
+            "data": {
+                "executionId": execution_id,
+                "serverId": server["id"],
+                "serverName": server["name"],
+                "progress": 40,
+                "message": f"Installing {server_config.get('osTemplate', 'base')} packages..."
+            }
+        })
+        await asyncio.sleep(2)
+        
+        # Step 4: Configure project template
+        await websocket.send_json({
+            "type": "initialization-progress",
+            "data": {
+                "executionId": execution_id,
+                "serverId": server["id"],
+                "serverName": server["name"],
+                "progress": 60,
+                "message": f"Configuring {server_config.get('projectTemplate', 'project')} environment..."
+            }
+        })
+        await asyncio.sleep(2.5)
+        
+        # Step 5: Apply security settings
+        await websocket.send_json({
+            "type": "initialization-progress",
+            "data": {
+                "executionId": execution_id,
+                "serverId": server["id"],
+                "serverName": server["name"],
+                "progress": 80,
+                "message": "Applying security settings..."
+            }
+        })
+        await asyncio.sleep(1.5)
+        
+        # Step 6: Finalize configuration
+        await websocket.send_json({
+            "type": "initialization-progress",
+            "data": {
+                "executionId": execution_id,
+                "serverId": server["id"],
+                "serverName": server["name"],
+                "progress": 95,
+                "message": "Finalizing configuration..."
+            }
+        })
+        await asyncio.sleep(1)
+        
+        # Calculate duration
+        end_time = datetime.now()
+        duration_seconds = (end_time - start_time).total_seconds()
+        duration = f"{int(duration_seconds // 60)}m {int(duration_seconds % 60)}s"
         
         # Update execution record
-        execution = db.query(Execution).filter(Execution.id == execution_id).first()
+        server["status"] = "success"
+        server["duration"] = duration
+        execution["status"] = "success"
+        
+        # Send completion
+        await websocket.send_json({
+            "type": "initialization-complete",
+            "data": {
+                "executionId": execution_id,
+                "serverId": server["id"],
+                "serverName": server["name"],
+                "status": "success",
+                "duration": duration
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error initializing server: {e}")
+        
+        # Update execution record with error
         if execution:
-            execution.status = "failed"
-            execution.end_time = datetime.now()
-            execution.duration = (execution.end_time - execution.start_time).total_seconds()
-            db.commit()
+            execution["status"] = "failed"
+            for s in execution["servers"]:
+                s["status"] = "failed"
         
-        # Send completion event
-        await manager.broadcast_to_topic(
-            topic,
-            {
-                "type": "execution_complete",
-                "data": {
-                    "status": "failed",
-                    "duration": f"{int(execution.duration // 60)}m {int(execution.duration % 60)}s" if execution else "0s"
-                }
+        # Send error to client
+        await websocket.send_json({
+            "type": "initialization-error",
+            "data": {
+                "executionId": execution_id,
+                "message": f"Error initializing server: {str(e)}"
             }
-        )
+        })
 
-# Background task to send periodic updates for dashboard metrics
-async def send_dashboard_updates():
-    """Send periodic updates for dashboard metrics"""
-    while True:
-        try:
-            # Generate server metrics data
-            current_time = datetime.now().strftime("%H:%M")
-            
-            # CPU data
-            cpu_value = 40 + (datetime.now().minute % 20)  # Vary between 40-60%
-            cpu_data = {
-                "time": current_time,
-                "value": cpu_value
-            }
-            
-            # Memory data
-            memory_value = 60 + (datetime.now().minute % 15)  # Vary between 60-75%
-            memory_data = {
-                "time": current_time,
-                "value": memory_value
-            }
-            
-            # Disk data
-            disk_value = 30 + (datetime.now().minute % 5)  # Vary between 30-35%
-            disk_data = {
-                "time": current_time,
-                "value": disk_value
-            }
-            
-            # Send metrics updates
-            await manager.broadcast_to_topic(
-                "server-metrics",
-                {
-                    "type": "metrics-update",
-                    "data": {
-                        "cpu": [cpu_data],
-                        "memory": [memory_data],
-                        "disk": [disk_data]
-                    }
-                }
-            )
-            
-            # Send server status updates
-            total_servers = 12
-            healthy_servers = 10
-            issues = 2
-            
-            await manager.broadcast_to_topic(
-                "server-status",
-                {
-                    "type": "status-update",
-                    "data": {
-                        "totalServers": total_servers,
-                        "newServers": 4,
-                        "totalPlaybooks": 24,
-                        "executedToday": 6,
-                        "issues": issues,
-                        "healthy": healthy_servers,
-                        "healthyPercentage": int((healthy_servers / total_servers) * 100)
-                    }
-                }
-            )
-            
-            # Generate random activity
-            activities = [
-                {
-                    "id": datetime.now().timestamp(),
-                    "user": "System",
-                    "action": "Executed playbook",
-                    "target": "health-check.yml",
-                    "time": "just now",
-                    "status": "success"
-                }
-            ]
-            
-            await manager.broadcast_to_topic(
-                "recent-activity",
-                {
-                    "type": "activity-update",
-                    "data": activities[0]
-                }
-            )
-            
-        except Exception as e:
-            logger.error(f"Error sending dashboard updates: {e}")
+async def initialize_servers_parallel(websocket: WebSocket, execution_id: str, servers_config: List[Dict]):
+    """Initialize multiple servers in parallel"""
+    try:
+        # Get execution record
+        execution = next((e for e in execution_history if e["id"] == execution_id), None)
+        if not execution:
+            return
         
-        # Wait before sending next update
-        await asyncio.sleep(10)  # Update every 10 seconds
+        # Send initial status
+        await websocket.send_json({
+            "type": "initialization-started",
+            "data": {
+                "executionId": execution_id,
+                "serverCount": len(servers_config)
+            }
+        })
+        
+        # Initialize all servers in parallel
+        tasks = []
+        for i, server_config in enumerate(servers_config):
+            server = execution["servers"][i]
+            task = asyncio.create_task(
+                initialize_single_server(
+                    websocket,
+                    execution_id,
+                    server["id"],
+                    server["name"],
+                    server_config
+                )
+            )
+            tasks.append(task)
+        
+        # Wait for all tasks to complete
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Process results and update execution record
+        success_count = 0
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                logger.error(f"Error in parallel initialization: {result}")
+                execution["servers"][i]["status"] = "failed"
+                continue
+            
+            server_id, status, duration = result
+            
+            # Update execution record
+            for s in execution["servers"]:
+                if s["id"] == server_id:
+                    s["status"] = status
+                    s["duration"] = duration
+                    if status == "success":
+                        success_count += 1
+        
+        # Update overall status
+        if success_count == len(servers_config):
+            execution["status"] = "success"
+        elif success_count == 0:
+            execution["status"] = "failed"
+        else:
+            execution["status"] = "partial"
+        
+        # Send overall completion
+        await websocket.send_json({
+            "type": "initialization-complete",
+            "data": {
+                "executionId": execution_id,
+                "status": execution["status"],
+                "successCount": success_count,
+                "totalCount": len(servers_config)
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in parallel initialization: {e}")
+        
+        # Update execution record with error
+        if execution:
+            execution["status"] = "failed"
+            for s in execution["servers"]:
+                if s["status"] == "running":
+                    s["status"] = "failed"
+        
+        # Send error to client
+        await websocket.send_json({
+            "type": "initialization-error",
+            "data": {
+                "executionId": execution_id,
+                "message": f"Error in parallel initialization: {str(e)}"
+            }
+        })
+
+async def initialize_single_server(websocket: WebSocket, execution_id: str, server_id: str, server_name: str, server_config: Dict):
+    """Initialize a single server"""
+    try:
+        start_time = datetime.now()
+        
+        # Step 1: Establish SSH connection
+        await websocket.send_json({
+            "type": "initialization-progress",
+            "data": {
+                "executionId": execution_id,
+                "serverId": server_id,
+                "serverName": server_name,
+                "progress": 10,
+                "message": "Establishing SSH connection..."
+            }
+        })
+        await asyncio.sleep(1)
+        
+        # Step 2: Set up SSH keys
+        await websocket.send_json({
+            "type": "initialization-progress",
+            "data": {
+                "executionId": execution_id,
+                "serverId": server_id,
+                "serverName": server_name,
+                "progress": 20,
+                "message": "Setting up SSH keys..."
+            }
+        })
+        await asyncio.sleep(1.5)
+        
+        # Step 3: Install base OS packages
+        await websocket.send_json({
+            "type": "initialization-progress",
+            "data": {
+                "executionId": execution_id,
+                "serverId": server_id,
+                "serverName": server_name,
+                "progress": 40,
+                "message": f"Installing {server_config.get('osTemplate', 'base')} packages..."
+            }
+        })
+        await asyncio.sleep(2)
+        
+        # Step 4: Configure project template
+        await websocket.send_json({
+            "type": "initialization-progress",
+            "data": {
+                "executionId": execution_id,
+                "serverId": server_id,
+                "serverName": server_name,
+                "progress": 60,
+                "message": f"Configuring {server_config.get('projectTemplate', 'project')} environment..."
+            }
+        })
+        await asyncio.sleep(2.5)
+        
+        # Step 5: Apply security settings
+        await websocket.send_json({
+            "type": "initialization-progress",
+            "data": {
+                "executionId": execution_id,
+                "serverId": server_id,
+                "serverName": server_name,
+                "progress": 80,
+                "message": "Applying security settings..."
+            }
+        })
+        await asyncio.sleep(1.5)
+        
+        # Step 6: Finalize configuration
+        await websocket.send_json({
+            "type": "initialization-progress",
+            "data": {
+                "executionId": execution_id,
+                "serverId": server_id,
+                "serverName": server_name,
+                "progress": 95,
+                "message": "Finalizing configuration..."
+            }
+        })
+        await asyncio.sleep(1)
+        
+        # Calculate duration
+        end_time = datetime.now()
+        duration_seconds = (end_time - start_time).total_seconds()
+        duration = f"{int(duration_seconds // 60)}m {int(duration_seconds % 60)}s"
+        
+        # Send completion for this server
+        await websocket.send_json({
+            "type": "initialization-server-complete",
+            "data": {
+                "executionId": execution_id,
+                "serverId": server_id,
+                "serverName": server_name,
+                "status": "success",
+                "duration": duration
+            }
+        })
+        
+        # Return result
+        return (server_id, "success", duration)
+        
+    except Exception as e:
+        logger.error(f"Error initializing server {server_name}: {e}")
+        
+        # Send error to client
+        await websocket.send_json({
+            "type": "initialization-server-error",
+            "data": {
+                "executionId": execution_id,
+                "serverId": server_id,
+                "serverName": server_name,
+                "message": f"Error: {str(e)}"
+            }
+        })
+        
+        # Return failure
+        return (server_id, "failed", "0s")
 
 # Start background tasks
 def start_background_tasks():
-    asyncio.create_task(send_dashboard_updates())
-
-# Update main.py to include WebSocket endpoint
-# Add to main.py:
-# from websocket_handler import websocket_endpoint, start_background_tasks
-# 
-# @app.on_event("startup")
-# def startup_event():
-#     start_background_tasks()
-# 
-# @app.websocket("/ws")
-# async def websocket_route(websocket: WebSocket):
-#     await websocket_endpoint(websocket)
-
+    """Start background tasks when the application starts"""
+    pass

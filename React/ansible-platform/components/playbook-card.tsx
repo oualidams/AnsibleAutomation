@@ -35,4 +35,3 @@ export function PlaybookCard({ playbook }) {
     </Card>
   )
 }
-

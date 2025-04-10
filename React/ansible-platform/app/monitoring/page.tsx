@@ -315,4 +315,3 @@ const detailedDiskData = [
   { time: "20:00", "web-server-01": 35, "web-server-02": 36, "db-server-01": 72, "cache-server-01": 28 },
   { time: "24:00", "web-server-01": 35, "web-server-02": 36, "db-server-01": 73, "cache-server-01": 28 },
 ]
-

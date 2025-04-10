@@ -492,4 +492,3 @@ export function DetailedServerMonitoring() {
     </div>
   )
 }
-

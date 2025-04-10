@@ -532,4 +532,3 @@ export function ScheduleManager() {
     </Card>
   )
 }
-

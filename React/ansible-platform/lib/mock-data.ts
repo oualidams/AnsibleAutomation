@@ -135,4 +135,3 @@ export const mockExecutionLogs = [
   { timestamp: "2023-06-15 14:33:45", level: "INFO", message: "Playbook execution completed" },
   { timestamp: "2023-06-15 14:33:46", level: "INFO", message: "Summary: 2 servers, 1 success, 1 failed" },
 ]
-

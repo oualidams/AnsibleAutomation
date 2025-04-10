@@ -29,19 +29,14 @@ const routes = [
     href: "/playbooks",
   },
   {
-    label: "Executions",
-    icon: Terminal,
-    href: "/executions",
-  },
-  {
     label: "Schedules",
     icon: Calendar,
     href: "/schedules",
   },
   {
-    label: "Backend Test",
+    label: "Executions",
     icon: Terminal,
-    href: "/test-backend",
+    href: "/executions",
   },
   {
     label: "Monitoring",
@@ -88,4 +83,3 @@ export function Sidebar() {
     </div>
   )
 }
-

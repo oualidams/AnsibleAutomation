@@ -771,4 +771,3 @@ export function InventoryManager() {
     </Card>
   )
 }
-

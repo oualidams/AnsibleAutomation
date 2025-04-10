@@ -1,318 +1,418 @@
-from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect, status, File, UploadFile
+from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Any, Optional
 import asyncio
-import subprocess
 import json
-import os
-import ansible_runner
-from datetime import datetime, timedelta
-import jwt
-from sqlalchemy.orm import Session
-import tempfile
-import yaml
+import logging
+from datetime import datetime
 
-from database import get_db, Server, Playbook, Execution, User
-from websocket_handler import websocket_endpoint, start_background_tasks
-from ssh_utils import setup_server_with_ssh
+from ansible_manager import AnsibleManager
 
-app = FastAPI(title="Ansible Automation API")
+app = FastAPI(title="Server Management API")
 
 # Enable CORS
 app.add_middleware(
-  CORSMiddleware,
-  allow_origins=["*"],  # Adjust in production
-  allow_credentials=True,
-  allow_methods=["*"],
-  allow_headers=["*"],
+    CORSMiddleware,
+    allow_origins=["*"],  # Adjust in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# Start background tasks on startup
-@app.on_event("startup")
-def startup_event():
-    start_background_tasks()
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# WebSocket endpoint
-@app.websocket("/ws")
-async def websocket_route(websocket: WebSocket):
-    await websocket_endpoint(websocket)
+# Initialize Ansible Manager
+ansible_manager = AnsibleManager()
 
-# Authentication
-SECRET_KEY = "your-secret-key-here"  # Change this in production
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+# WebSocket connections
+active_connections: List[WebSocket] = []
 
 # Models
-class PlaybookRequest(BaseModel):
-  playbook_id: int
-  target_servers: List[str]
-  extra_vars: Optional[Dict[str, Any]] = {}
+class ServerConfig(BaseModel):
+    name: str
+    ip: str
+    username: str
+    password: str
+    ssh_port: Optional[str] = "22"
+    environment: str
+    os_type: str
+    os_version: Optional[str] = ""
+    project_type: Optional[str] = ""
+    custom_commands: Optional[str] = ""
+    open_ports: Optional[str] = ""
+    install_packages: Optional[str] = ""
+    enable_firewall: Optional[bool] = True
+    disable_root_login: Optional[bool] = True
+    enable_fail2ban: Optional[bool] = True
+    automatic_updates: Optional[bool] = True
+    install_monitoring: Optional[bool] = True
+    monitoring_email: Optional[str] = ""
 
-class PlaybookResponse(BaseModel):
-  execution_id: str
-  status: str
-  start_time: str
+class CommandRequest(BaseModel):
+    command: str
+    servers: List[str]
 
-class PlaybookCreate(BaseModel):
-  name: str
-  description: Optional[str] = None
-  content: str
+class HealthCheckRequest(BaseModel):
+    checks: List[str]
+    servers: List[str]
 
-class ServerCreate(BaseModel):
-  name: str
-  ip: str
-  environment: str
-  os: str
-  cpu: str
-  memory: str
-  disk: str
+# WebSocket connection handler
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    active_connections.append(websocket)
+    
+    try:
+        while True:
+            data = await websocket.receive_text()
+            message = json.loads(data)
+            action = message.get("action", "")
+            
+            if action == "initialize-server":
+                server_config = message.get("server", {})
+                
+                # Send acknowledgment
+                await websocket.send_json({
+                    "type": "initialization-started",
+                    "data": {
+                        "server_name": server_config.get("name", ""),
+                        "status": "running"
+                    }
+                })
+                
+                # Run server initialization in background
+                asyncio.create_task(
+                    initialize_server_task(websocket, server_config)
+                )
+                
+            elif action == "execute-command":
+                command = message.get("command", "")
+                server_ids = message.get("servers", [])
+                
+                # Get server details
+                servers = []
+                for server_id in server_ids:
+                    # In a real app, fetch from database
+                    # For now, use mock data
+                    servers.append({
+                        "id": server_id,
+                        "name": f"server-{server_id}",
+                        "ip": "127.0.0.1"  # Mock IP
+                    })
+                
+                # Send acknowledgment
+                await websocket.send_json({
+                    "type": "command-started",
+                    "data": {
+                        "command": command,
+                        "servers": [s["name"] for s in servers],
+                        "status": "running"
+                    }
+                })
+                
+                # Run command execution in background
+                asyncio.create_task(
+                    execute_command_task(websocket, command, servers)
+                )
+                
+            elif action == "run-health-check":
+                checks = message.get("checks", [])
+                server_ids = message.get("servers", [])
+                
+                # Get server details
+                servers = []
+                for server_id in server_ids:
+                    # In a real app, fetch from database
+                    # For now, use mock data
+                    servers.append({
+                        "id": server_id,
+                        "name": f"server-{server_id}",
+                        "ip": "127.0.0.1"  # Mock IP
+                    })
+                
+                # Send acknowledgment
+                await websocket.send_json({
+                    "type": "health-check-started",
+                    "data": {
+                        "checks": checks,
+                        "servers": [s["name"] for s in servers],
+                        "status": "running"
+                    }
+                })
+                
+                # Run health check in background
+                asyncio.create_task(
+                    run_health_check_task(websocket, checks, servers)
+                )
+                
+            else:
+                await websocket.send_json({
+                    "type": "error",
+                    "data": {
+                        "message": f"Unknown action: {action}"
+                    }
+                })
+                
+    except WebSocketDisconnect:
+        active_connections.remove(websocket)
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
+        try:
+            active_connections.remove(websocket)
+        except ValueError:
+            pass
 
-class Token(BaseModel):
-  access_token: str
-  token_type: str
+# Background tasks
+async def initialize_server_task(websocket: WebSocket, server_config: Dict[str, Any]):
+    try:
+        # Update client with progress
+        await websocket.send_json({
+            "type": "initialization-progress",
+            "data": {
+                "server_name": server_config.get("name", ""),
+                "progress": 10,
+                "message": "Establishing connection..."
+            }
+        })
+        
+        await asyncio.sleep(1)  # Simulate work
+        
+        # Update client with progress
+        await websocket.send_json({
+            "type": "initialization-progress",
+            "data": {
+                "server_name": server_config.get("name", ""),
+                "progress": 30,
+                "message": "Setting up SSH keys..."
+            }
+        })
+        
+        await asyncio.sleep(2)  # Simulate work
+        
+        # Update client with progress
+        await websocket.send_json({
+            "type": "initialization-progress",
+            "data": {
+                "server_name": server_config.get("name", ""),
+                "progress": 50,
+                "message": "Configuring security settings..."
+            }
+        })
+        
+        await asyncio.sleep(1.5)  # Simulate work
+        
+        # Update client with progress
+        await websocket.send_json({
+            "type": "initialization-progress",
+            "data": {
+                "server_name": server_config.get("name", ""),
+                "progress": 70,
+                "message": "Installing required packages..."
+            }
+        })
+        
+        await asyncio.sleep(2.5)  # Simulate work
+        
+        # Update client with progress
+        await websocket.send_json({
+            "type": "initialization-progress",
+            "data": {
+                "server_name": server_config.get("name", ""),
+                "progress": 90,
+                "message": "Finalizing configuration..."
+            }
+        })
+        
+        await asyncio.sleep(1)  # Simulate work
+        
+        # In a real app, call ansible_manager.initialize_server(server_config)
+        # For now, simulate success
+        
+        # Send completion
+        await websocket.send_json({
+            "type": "initialization-complete",
+            "data": {
+                "server_name": server_config.get("name", ""),
+                "success": True,
+                "message": "Server initialization completed successfully"
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error initializing server: {e}")
+        await websocket.send_json({
+            "type": "initialization-complete",
+            "data": {
+                "server_name": server_config.get("name", ""),
+                "success": False,
+                "message": f"Error initializing server: {str(e)}"
+            }
+        })
 
-class SSHSetupRequest(BaseModel):
-  server_name: str
-  server_ip: str
-  username: str
-  password: str
+async def execute_command_task(websocket: WebSocket, command: str, servers: List[Dict[str, Any]]):
+    try:
+        # Update client with progress for each server
+        for server in servers:
+            await websocket.send_json({
+                "type": "command-progress",
+                "data": {
+                    "server_id": server["id"],
+                    "server_name": server["name"],
+                    "status": "running",
+                    "output": f"Connecting to {server['name']}...\n"
+                }
+            })
+        
+        await asyncio.sleep(1)  # Simulate work
+        
+        # Update client with command execution
+        for server in servers:
+            await websocket.send_json({
+                "type": "command-progress",
+                "data": {
+                    "server_id": server["id"],
+                    "server_name": server["name"],
+                    "status": "running",
+                    "output": f"Connecting to {server['name']}...\nExecuting: {command}\n\n"
+                }
+            })
+        
+        # In a real app, call ansible_manager.execute_command(command, servers)
+        # For now, simulate results
+        await asyncio.sleep(2)  # Simulate work
+        
+        # Send completion for each server
+        for server in servers:
+            # Simulate success or failure
+            success = server["id"] != "srv-004"  # Fail for server 4
+            
+            output = f"Connecting to {server['name']}...\nExecuting: {command}\n\n"
+            if success:
+                output += "Command executed successfully.\nOutput:\n"
+                if "df" in command:
+                    output += "Filesystem      Size  Used Avail Use% Mounted on\n"
+                    output += "udev            7.8G     0  7.8G   0% /dev\n"
+                    output += "tmpfs           1.6G  2.1M  1.6G   1% /run\n"
+                    output += "/dev/sda1        98G   48G   45G  52% /\n"
+                elif "free" in command:
+                    output += "              total        used        free      shared  buff/cache   available\n"
+                    output += "Mem:          16096        4738        8740         754        2617       10302\n"
+                    output += "Swap:          4095           0        4095\n"
+                else:
+                    output += f"Command completed on {server['name']}\n"
+            else:
+                output += f"Error: Connection to {server['name']} failed\n"
+            
+            await websocket.send_json({
+                "type": "command-complete",
+                "data": {
+                    "server_id": server["id"],
+                    "server_name": server["name"],
+                    "status": "success" if success else "error",
+                    "output": output
+                }
+            })
+        
+    except Exception as e:
+        logger.error(f"Error executing command: {e}")
+        for server in servers:
+            await websocket.send_json({
+                "type": "command-complete",
+                "data": {
+                    "server_id": server["id"],
+                    "server_name": server["name"],
+                    "status": "error",
+                    "output": f"Error executing command: {str(e)}"
+                }
+            })
 
-# Authentication functions
-def create_access_token(data: dict, expires_delta: timedelta = None):
-  to_encode = data.copy()
-  if expires_delta:
-      expire = datetime.utcnow() + expires_delta
-  else:
-      expire = datetime.utcnow() + timedelta(minutes=15)
-  to_encode.update({"exp": expire})
-  encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-  return encoded_jwt
-
-async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-  credentials_exception = HTTPException(
-      status_code=status.HTTP_401_UNAUTHORIZED,
-      detail="Could not validate credentials",
-      headers={"WWW-Authenticate": "Bearer"},
-  )
-  try:
-      payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-      username: str = payload.get("sub")
-      if username is None:
-          raise credentials_exception
-  except jwt.PyJWTError:
-      raise credentials_exception
-  user = db.query(User).filter(User.username == username).first()
-  if user is None:
-      raise credentials_exception
-  return user
-
-# Routes
-@app.post("/token", response_model=Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-  user = db.query(User).filter(User.username == form_data.username).first()
-  if not user or not user.verify_password(form_data.password):
-      raise HTTPException(
-          status_code=status.HTTP_401_UNAUTHORIZED,
-          detail="Incorrect username or password",
-          headers={"WWW-Authenticate": "Bearer"},
-      )
-  access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-  access_token = create_access_token(
-      data={"sub": user.username}, expires_delta=access_token_expires
-  )
-  return {"access_token": access_token, "token_type": "bearer"}
-
-# Server endpoints
-@app.get("/servers", response_model=List[dict])
-async def get_servers(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-  servers = db.query(Server).all()
-  return servers
-
-@app.post("/servers", status_code=status.HTTP_201_CREATED)
-async def create_server(
-  server: ServerCreate, 
-  current_user: User = Depends(get_current_user), 
-  db: Session = Depends(get_db)
-):
-  db_server = Server(**server.dict())
-  db.add(db_server)
-  db.commit()
-  db.refresh(db_server)
-  return {"id": db_server.id, "message": "Server created successfully"}
-
-@app.post("/servers/setup-ssh", status_code=status.HTTP_200_OK)
-async def setup_server_ssh(
-  request: SSHSetupRequest,
-  current_user: User = Depends(get_current_user)
-):
-  success, message, key_path = setup_server_with_ssh(
-      request.server_name,
-      request.server_ip,
-      request.username,
-      request.password
-  )
-  
-  if not success:
-      raise HTTPException(status_code=400, detail=message)
-  
-  return {
-      "success": True,
-      "message": message,
-      "key_path": key_path
-  }
-
-# Playbook endpoints
-@app.get("/playbooks", response_model=List[dict])
-async def get_playbooks(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-  playbooks = db.query(Playbook).all()
-  return playbooks
-
-@app.post("/playbooks", status_code=status.HTTP_201_CREATED)
-async def create_playbook(
-  playbook: PlaybookCreate,
-  current_user: User = Depends(get_current_user),
-  db: Session = Depends(get_db)
-):
-  # Validate YAML content
-  try:
-      yaml.safe_load(playbook.content)
-  except yaml.YAMLError:
-      raise HTTPException(status_code=400, detail="Invalid YAML content")
-  
-  # Save playbook content to file
-  playbook_dir = os.path.join(os.getcwd(), "playbooks")
-  os.makedirs(playbook_dir, exist_ok=True)
-  
-  playbook_filename = f"{playbook.name.lower().replace(' ', '_')}.yml"
-  playbook_path = os.path.join(playbook_dir, playbook_filename)
-  
-  with open(playbook_path, "w") as f:
-      f.write(playbook.content)
-  
-  # Count tasks in playbook
-  try:
-      playbook_data = yaml.safe_load(playbook.content)
-      task_count = sum(len(play.get('tasks', [])) for play in playbook_data)
-  except:
-      task_count = 0
-  
-  # Create playbook record
-  db_playbook = Playbook(
-      name=playbook.name,
-      description=playbook.description,
-      path=playbook_path,
-      tasks=task_count
-  )
-  db.add(db_playbook)
-  db.commit()
-  db.refresh(db_playbook)
-  
-  return {"id": db_playbook.id, "message": "Playbook created successfully"}
-
-@app.post("/playbooks/upload", status_code=status.HTTP_201_CREATED)
-async def upload_playbook(
-  name: str,
-  description: Optional[str] = None,
-  file: UploadFile = File(...),
-  current_user: User = Depends(get_current_user),
-  db: Session = Depends(get_db)
-):
-  # Read and validate file content
-  content = await file.read()
-  try:
-      yaml.safe_load(content)
-  except yaml.YAMLError:
-      raise HTTPException(status_code=400, detail="Invalid YAML file")
-  
-  # Save playbook content to file
-  playbook_dir = os.path.join(os.getcwd(), "playbooks")
-  os.makedirs(playbook_dir, exist_ok=True)
-  
-  playbook_filename = f"{name.lower().replace(' ', '_')}.yml"
-  playbook_path = os.path.join(playbook_dir, playbook_filename)
-  
-  with open(playbook_path, "wb") as f:
-      f.write(content)
-  
-  # Count tasks in playbook
-  try:
-      playbook_data = yaml.safe_load(content)
-      task_count = sum(len(play.get('tasks', [])) for play in playbook_data)
-  except:
-      task_count = 0
-  
-  # Create playbook record
-  db_playbook = Playbook(
-      name=name,
-      description=description,
-      path=playbook_path,
-      tasks=task_count
-  )
-  db.add(db_playbook)
-  db.commit()
-  db.refresh(db_playbook)
-  
-  return {"id": db_playbook.id, "message": "Playbook uploaded successfully"}
-
-@app.post("/playbooks/execute", response_model=PlaybookResponse)
-async def execute_playbook(
-  request: PlaybookRequest, 
-  current_user: User = Depends(get_current_user),
-  db: Session = Depends(get_db)
-):
-  # Retrieve playbook from database
-  playbook = db.query(Playbook).filter(Playbook.id == request.playbook_id).first()
-  if not playbook:
-      raise HTTPException(status_code=404, detail="Playbook not found")
-  
-  # Create execution record
-  execution = Execution(
-      playbook_id=playbook.id,
-      user_id=current_user.id,
-      target=",".join(request.target_servers),
-      status="running",
-      start_time=datetime.now()
-  )
-  db.add(execution)
-  db.commit()
-  db.refresh(execution)
-  
-  # Run playbook asynchronously
-  asyncio.create_task(run_ansible_playbook(
-      playbook.path,
-      request.target_servers,
-      request.extra_vars,
-      execution.id,
-      db
-  ))
-  
-  return {
-      "execution_id": str(execution.id),
-      "status": "running",
-      "start_time": execution.start_time.isoformat()
-  }
-
-@app.get("/executions", response_model=List[dict])
-async def get_executions(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-  executions = db.query(Execution).all()
-  return executions
-
-@app.get("/executions/{execution_id}", response_model=dict)
-async def get_execution(
-  execution_id: int, 
-  current_user: User = Depends(get_current_user),
-  db: Session = Depends(get_db)
-):
-  execution = db.query(Execution).filter(Execution.id == execution_id).first()
-  if not execution:
-      raise HTTPException(status_code=404, detail="Execution not found")
-  return execution
+async def run_health_check_task(websocket: WebSocket, checks: List[str], servers: List[Dict[str, Any]]):
+    try:
+        # Update client with progress
+        await websocket.send_json({
+            "type": "health-check-progress",
+            "data": {
+                "progress": 10,
+                "message": "Starting health checks..."
+            }
+        })
+        
+        # In a real app, call ansible_manager.run_health_check(checks, servers)
+        # For now, simulate results
+        
+        total_checks = len(checks) * len(servers)
+        completed = 0
+        
+        # Process each server
+        for server in servers:
+            # Process each check
+            server_results = {}
+            
+            for check in checks:
+                await asyncio.sleep(0.5)  # Simulate work
+                
+                # Simulate check result
+                status = "success"
+                message = f"Check completed successfully on {server['name']}"
+                
+                # Randomly fail some checks
+                if server["id"] == "srv-004" or (server["id"] == "srv-002" and check == "disk"):
+                    status = "error"
+                    message = f"Check failed on {server['name']}: Insufficient disk space"
+                elif server["id"] == "srv-006" and check == "memory":
+                    status = "warning"
+                    message = f"Check warning on {server['name']}: Memory usage is high (85%)"
+                
+                server_results[check] = {
+                    "status": status,
+                    "message": message
+                }
+                
+                # Update progress
+                completed += 1
+                progress = int((completed / total_checks) * 100)
+                
+                await websocket.send_json({
+                    "type": "health-check-progress",
+                    "data": {
+                        "progress": progress,
+                        "message": f"Running {check} check on {server['name']}..."
+                    }
+                })
+            
+            # Send server results
+            await websocket.send_json({
+                "type": "health-check-server-complete",
+                "data": {
+                    "server_id": server["id"],
+                    "server_name": server["name"],
+                    "results": server_results
+                }
+            })
+        
+        # Send completion
+        await websocket.send_json({
+            "type": "health-check-complete",
+            "data": {
+                "success": True,
+                "message": "Health checks completed"
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error running health checks: {e}")
+        await websocket.send_json({
+            "type": "health-check-complete",
+            "data": {
+                "success": False,
+                "message": f"Error running health checks: {str(e)}"
+            }
+        })
 
 # Root endpoint
 @app.get("/")
 async def root():
-  return {"message": "Ansible Automation API"}
+    return {"message": "Server Management API"}

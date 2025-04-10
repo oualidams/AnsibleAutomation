@@ -367,4 +367,3 @@ export function ExecutionMonitor({ executionId, open, onClose }) {
     </Dialog>
   )
 }
-

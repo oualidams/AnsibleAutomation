@@ -123,10 +123,19 @@ export const WebSocketProvider = ({
         }
       }
 
-      ws.onerror = (error) => {
-        console.error("WebSocket error:", error)
-        // Close the connection on error, which will trigger onclose
-        ws.close()
+      ws.onerror = (event) => {
+        // The error event doesn't contain useful information, just log that an error occurred
+        console.error("WebSocket connection error occurred")
+
+        // Don't call ws.close() here as the connection will automatically close on error
+        // and trigger the onclose handler
+
+        // Switch to mock mode immediately for better UX
+        setMockMode(true)
+        toast({
+          title: "Using offline mode",
+          description: "Could not connect to server. Using simulated data.",
+        })
       }
 
       setSocket(ws)
@@ -261,4 +270,3 @@ export const useWebSocketTopic = (topic: string) => {
 
   return topicData
 }
-

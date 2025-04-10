@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { PlusCircle, Search } from "lucide-react"
 import { ServerTable } from "@/components/server-table"
 import { useState } from "react"
-import { AddServerModal } from "@/components/add-server"
+import { AddServerModal } from "@/components/add-server-modal"
 
 export default function ServersPage() {
   const [addServerModalOpen, setAddServerModalOpen] = useState(false)

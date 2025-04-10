@@ -255,4 +255,3 @@ def update_security_settings(settings: SecuritySettings):
     
     # Other settings would be saved similarly
     return True
-
