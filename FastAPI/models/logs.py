@@ -8,7 +8,8 @@ class Log(Base):
     __tablename__ = "logs"
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
-    playbook_id = Column(Integer, ForeignKey("playbooks.id"))
+    template_id = Column(Integer, ForeignKey("template.id"))
+    configurtaion_is = Column(Integer, ForeignKey("configuration.id"))
     server_name = Column(String)
     log_content = Column(Text)
     timestamp = Column(String)

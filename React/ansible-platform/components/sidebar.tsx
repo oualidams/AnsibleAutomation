@@ -29,15 +29,21 @@ const routes = [
     href: "/playbooks",
   },
   {
-    label: "Schedules",
-    icon: Calendar,
-    href: "/schedules",
-  },
-  {
     label: "Executions",
     icon: Terminal,
     href: "/executions",
   },
+  {
+    label: "Test Backend",
+    icon: PlaySquare,
+    href: "/test-backend",
+  },
+  {
+    label: "Schedules",
+    icon: Calendar,
+    href: "/schedules",
+  },
+  
   {
     label: "Monitoring",
     icon: BarChart3,

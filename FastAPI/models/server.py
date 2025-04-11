@@ -1,18 +1,23 @@
 # server.py
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, JSON
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
+from pydantic import BaseModel
+from typing import List, Optional
 
 Base = declarative_base()
 
-class Server (Base):
-    __tablename__ = "servers"
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, unique=True, index=True)
-    ip_address = Column(String, unique=True, index=True)
-    port = Column(Integer)
-    os = Column(String)
-    os_version = Column(String)
-    username = Column(String)
-    password = Column(String)
-    playbook = relationship("Playbook", back_populates="servers")
+class Server(BaseModel):
+    id: Optional[str]
+    name: str
+    ip: str
+    username: str
+    password: str
+    sshPort: str
+    environment: str
+    osTemplate: str
+    projectTemplate: str
+    securityTemplate: str
+    customCommands: Optional[str] = None
+    enableFirewall: bool
+    disableRootLogin: bool
+    enableFail2ban: bool
+    automaticUpdates: bool
