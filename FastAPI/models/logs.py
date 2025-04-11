@@ -1,11 +1,11 @@
 from sqlalchemy import Column, Integer, String, Text, ForeignKey, JSON
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
 
 Base = declarative_base()
 
 class Log(Base):
     __tablename__ = "logs"
+    
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     template_id = Column(Integer, ForeignKey("template.id"))
@@ -14,5 +14,3 @@ class Log(Base):
     log_content = Column(Text)
     timestamp = Column(String)
     status = Column(String)
-
-    playbook = relationship("Playbook", back_populates="logs")

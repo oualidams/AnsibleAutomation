@@ -1,23 +1,24 @@
 # server.py
+from sqlalchemy import Column, Integer, String, Boolean
 from sqlalchemy.ext.declarative import declarative_base
-from pydantic import BaseModel
-from typing import List, Optional
 
 Base = declarative_base()
 
-class Server(BaseModel):
-    id: Optional[str]
-    name: str
-    ip: str
-    username: str
-    password: str
-    sshPort: str
-    environment: str
-    osTemplate: str
-    projectTemplate: str
-    securityTemplate: str
-    customCommands: Optional[str] = None
-    enableFirewall: bool
-    disableRootLogin: bool
-    enableFail2ban: bool
-    automaticUpdates: bool
+class Server(Base):
+    __tablename__ = "servers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    ip = Column(String, nullable=False)
+    username = Column(String, nullable=False)
+    password = Column(String, nullable=False)
+    sshPort = Column(String, nullable=False)
+    environment = Column(String, nullable=False)
+    osTemplate = Column(String, nullable=False)
+    projectTemplate = Column(String, nullable=False)
+    securityTemplate = Column(String, nullable=False)
+    customCommands = Column(String, nullable=True)
+    enableFirewall = Column(Boolean, default=False)
+    disableRootLogin = Column(Boolean, default=False)
+    enableFail2ban = Column(Boolean, default=False)
+    automaticUpdates = Column(Boolean, default=False)

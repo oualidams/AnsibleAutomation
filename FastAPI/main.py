@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from configuration.config import SessionLocal
-from services import user_service, server_service, template_service # Import routers from other services
+from services import user_service, server_service, template_service, log_service, config_service
 
 app = FastAPI()
 
@@ -22,6 +22,8 @@ app.add_middleware(
 app.include_router(user_service.router, prefix="/users", tags=["Users"])
 app.include_router(server_service.router, prefix="/servers", tags=["Servers"])
 app.include_router(template_service.router, prefix="/templates", tags=["Templates"])
+app.include_router(log_service.router, prefix="/logs", tags=["Logs"])
+app.include_router(config_service.router, prefix="/configurations", tags=["Configurations"])
 
 @app.get("/")
 async def root():
