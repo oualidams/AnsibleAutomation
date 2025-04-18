@@ -43,12 +43,6 @@ const routes = [
     icon: Calendar,
     href: "/schedules",
   },
-  
-  {
-    label: "Monitoring",
-    icon: BarChart3,
-    href: "/monitoring",
-  },
   {
     label: "Settings",
     icon: Cog,
