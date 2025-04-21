@@ -50,7 +50,7 @@ export function AddServerModal({ open, onOpenChange }: AddServerModalProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: serverName,
-          ip: ipAddress,
+          ip_adress: ipAddress,
           environment: environment,
           os: osType,
         }),

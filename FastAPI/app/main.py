@@ -2,8 +2,28 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from configuration.config import SessionLocal
 from services import user_service, server_service, template_service, log_service, config_service
+from configuration.database import Base, engine
+from models.server import Server  # Import models to register
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY
+from fastapi import Request
+
+Base.metadata.create_all(bind=engine)
+
 
 app = FastAPI()
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    body = await request.body()
+    print("🧠 Corps brut reçu (JSON):", body.decode())
+    print("❌ Erreurs de validation :", exc.errors())
+
+    return JSONResponse(
+        status_code=HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": exc.errors()},
+    )
 
 # CORS configuration
 origins = [
