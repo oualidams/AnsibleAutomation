@@ -10,6 +10,7 @@ class Configuration(Base):
     id = Column(Integer, primary_key=True, index=True)
     playbook_id = Column(Integer, ForeignKey("playbooks.id"))
     server_name = Column(String)
+    module = Column(String)
     configuration = Column(JSON)
 
     playbook = relationship("Playbook", back_populates="configurations")

@@ -1,13 +1,26 @@
-# filepath: c:\Users\oamsaguine\Desktop\AnsibleAutomation\FastAPI\routers\user_router.py
-from fastapi import APIRouter
+# services/user_service.py
+from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy.orm import Session
+from configuration.config import get_db
+from models.user import User
+from schemas.user_schema import UserCreate, UserOut
 
 router = APIRouter()
 
-@router.post("/create")
-async def create_user():
-    new_user = "User created successfully"
-    print(new_user)
-    return {"message": new_user}
+@router.post("/create", response_model=UserOut)
+async def create_user(user: UserCreate, request: Request, db: Session = Depends(get_db)):
+    print(await request.json())
+    db_user = User(**user.dict())
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+@router.get("/getUsers", response_model=list[UserOut])
+async def get_users(db: Session = Depends(get_db)):
+    return db.query(User).all()
+
+
 
 @router.get("/getUsers")
 async def get_users():
