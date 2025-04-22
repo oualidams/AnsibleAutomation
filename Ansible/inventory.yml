@@ -1,0 +1,6 @@
+Servers:
+  development: null
+  production:
+  - ip: 192.10.2.1
+    name: prod-server
+  staging: null

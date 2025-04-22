@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 from configuration.config import get_db
 from models.server import Server
 from schemas.server_schema import ServerCreate, ServerOut
+from pathlib import Path
+import yaml
 
 router = APIRouter()
 
@@ -14,6 +16,32 @@ async def create_server(server: ServerCreate, request: Request, db: Session = De
     db.add(db_server)
     db.commit()
     db.refresh(db_server)
+    
+    # Update inventory.yml
+    inventory_path = Path("/home/oualidams/Desktop/AnsibleAutomation/Ansible/inventory.yml")
+    if inventory_path.exists():
+        with inventory_path.open("r") as file:
+            inventory_data = yaml.safe_load(file)
+
+        # Ensure the environment exists in the inventory
+        environment = server.environment.lower()
+        if environment not in inventory_data["Servers"]:
+            inventory_data["Servers"][environment] = []
+
+        # Ensure the environment is a list
+        if not isinstance(inventory_data["Servers"][environment], list):
+            inventory_data["Servers"][environment] = []
+
+        # Add the server to the environment
+        inventory_data["Servers"][environment].append({
+            "name": server.name,
+            "ip": server.ip_address,
+        })
+
+        # Write the updated inventory back to the file
+        with inventory_path.open("w") as file:
+            yaml.safe_dump(inventory_data, file)
+
     return db_server
 
 @router.get("/getServers", response_model=list[ServerOut])

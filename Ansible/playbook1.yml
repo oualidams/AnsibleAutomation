@@ -1,0 +1,9 @@
+---
+- name: Test Playbook on localhost
+    hosts: localhost
+    gather_facts: false
+
+    tasks:
+        - name: Print a message
+            debug:
+                msg: "This is a test playbook running on localhost."
