@@ -1,5 +1,7 @@
 Servers:
-  development: null
+  development:
+  - ip: 192.168.4.80
+    name: nouhassi
   production:
   - ip: 192.10.2.1
     name: prod-server

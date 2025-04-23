@@ -1,14 +1,20 @@
-from fastapi import APIRouter
-#from models.configuration import Config
+from fastapi import APIRouter, Request, Depends
+from sqlalchemy.orm import Session
+from configuration.config import get_db
+from models.cmd import Configuration
+from schemas.cmd_schema import CmdCreate, CmdOut
 
 
 router = APIRouter()
 
-@router.post("/create")
-async def create_config():
-    new_config = "Configuration created successfully"
-    print(new_config)
-    return {"message": new_config}
+@router.post("/create", response_model=CmdOut)
+async def create_config(cmd: CmdCreate, request: Request, db: Session = Depends(get_db)):
+    print(await request.json())
+    db_configuration = Configuration(**cmd.dict())
+    db.add(db_configuration)
+    db.commit()
+    db.refresh(db_configuration)
+    return db_configuration
 
 @router.get("/getConfigs")
 async def get_configs():

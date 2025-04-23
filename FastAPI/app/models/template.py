@@ -2,8 +2,7 @@
 from sqlalchemy import Column, Integer, String, Text, ForeignKey, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
-
-Base = declarative_base()
+from configuration.database import Base
 
 class Template(Base):
     __tablename__ = "templates"
@@ -11,4 +10,4 @@ class Template(Base):
     name = Column(String, unique=True, index=True)
     description = Column(Text)
 
-    configurations = relationship("Configuration", back_populates="template")
+    configurations = relationship("TemplateConfiguration", backref="template", cascade="all, delete-orphan")

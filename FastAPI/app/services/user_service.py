@@ -20,13 +20,6 @@ async def create_user(user: UserCreate, request: Request, db: Session = Depends(
 async def get_users(db: Session = Depends(get_db)):
     return db.query(User).all()
 
-
-
-@router.get("/getUsers")
-async def get_users():
-    users = ["User1", "User2", "User3"]
-    return {"users": users}
-
 @router.get("/getUser/{user_id}")
 async def get_user(user_id: int):
     user = f"User{user_id}"

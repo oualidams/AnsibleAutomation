@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from configuration.config import SessionLocal
-from services import user_service, server_service, template_service, log_service, config_service
+from services import user_service, server_service, template_service, log_service, cmd_service
 from configuration.database import Base, engine
 from models.server import Server  # Import models to register
 from fastapi.exceptions import RequestValidationError
@@ -43,7 +43,7 @@ app.include_router(user_service.router, prefix="/users", tags=["Users"])
 app.include_router(server_service.router, prefix="/servers", tags=["Servers"])
 app.include_router(template_service.router, prefix="/templates", tags=["Templates"])
 app.include_router(log_service.router, prefix="/logs", tags=["Logs"])
-app.include_router(config_service.router, prefix="/configurations", tags=["Configurations"])
+app.include_router(cmd_service.router, prefix="/configurations", tags=["Configurations"])
 
 @app.get("/")
 async def root():
