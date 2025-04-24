@@ -1,15 +1,27 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { PlusCircle, Search } from "lucide-react"
 import { ServerTable } from "@/components/server-table"
-import { useState } from "react"
-import { AddServerModal } from "@/components/add-server-modal"
+import { ServerInitializationWizard } from "@/components/server-initialization-wizard"
 
 export default function ServersPage() {
   const [addServerModalOpen, setAddServerModalOpen] = useState(false)
+  const [servers, setServers] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch("http://localhost:8000/servers/getServers")
+      .then((res) => res.json())
+      .then((data) => {
+        setServers(data)
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }, [])
 
   return (
     <div className="flex flex-col gap-6">
@@ -41,109 +53,22 @@ export default function ServersPage() {
         </TabsList>
 
         <TabsContent value="all" className="mt-6">
-          <ServerTable servers={servers} />
+          {loading ? <div>Loading...</div> : <ServerTable servers={servers} />}
         </TabsContent>
 
         <TabsContent value="production" className="mt-6">
-          <ServerTable servers={servers.filter((s) => s.environment === "Production")} />
+          <ServerTable servers={servers.filter((s) => s.environment === "production")} />
         </TabsContent>
 
         <TabsContent value="staging" className="mt-6">
-          <ServerTable servers={servers.filter((s) => s.environment === "Staging")} />
+          <ServerTable servers={servers.filter((s) => s.environment === "staging")} />
         </TabsContent>
 
         <TabsContent value="development" className="mt-6">
-          <ServerTable servers={servers.filter((s) => s.environment === "Development")} />
+          <ServerTable servers={servers.filter((s) => s.environment === "development")} />
         </TabsContent>
       </Tabs>
-      <AddServerModal open={addServerModalOpen} onOpenChange={setAddServerModalOpen} />
+      <ServerInitializationWizard open={addServerModalOpen} onOpenChange={setAddServerModalOpen} />
     </div>
   )
 }
-
-export const servers = [
-  {
-    id: "srv-001",
-    name: "web-server-01",
-    ip: "192.168.1.101",
-    status: "online",
-    environment: "Production",
-    os: "Ubuntu 22.04 LTS",
-    cpu: "4 cores",
-    memory: "16 GB",
-    disk: "500 GB SSD",
-    lastSeen: "2 minutes ago",
-  },
-  {
-    id: "srv-002",
-    name: "web-server-02",
-    ip: "192.168.1.102",
-    status: "online",
-    environment: "Production",
-    os: "Ubuntu 22.04 LTS",
-    cpu: "4 cores",
-    memory: "16 GB",
-    disk: "500 GB SSD",
-    lastSeen: "5 minutes ago",
-  },
-  {
-    id: "srv-003",
-    name: "db-server-01",
-    ip: "192.168.1.201",
-    status: "online",
-    environment: "Production",
-    os: "Ubuntu 22.04 LTS",
-    cpu: "8 cores",
-    memory: "32 GB",
-    disk: "1 TB SSD",
-    lastSeen: "1 minute ago",
-  },
-  {
-    id: "srv-004",
-    name: "cache-server-01",
-    ip: "192.168.1.301",
-    status: "offline",
-    environment: "Production",
-    os: "Ubuntu 22.04 LTS",
-    cpu: "2 cores",
-    memory: "8 GB",
-    disk: "250 GB SSD",
-    lastSeen: "2 days ago",
-  },
-  {
-    id: "srv-005",
-    name: "staging-web-01",
-    ip: "192.168.2.101",
-    status: "online",
-    environment: "Staging",
-    os: "Ubuntu 22.04 LTS",
-    cpu: "2 cores",
-    memory: "8 GB",
-    disk: "250 GB SSD",
-    lastSeen: "10 minutes ago",
-  },
-  {
-    id: "srv-006",
-    name: "staging-db-01",
-    ip: "192.168.2.201",
-    status: "online",
-    environment: "Staging",
-    os: "Ubuntu 22.04 LTS",
-    cpu: "4 cores",
-    memory: "16 GB",
-    disk: "500 GB SSD",
-    lastSeen: "15 minutes ago",
-  },
-  {
-    id: "srv-007",
-    name: "dev-server-01",
-    ip: "192.168.3.101",
-    status: "online",
-    environment: "Development",
-    os: "Ubuntu 22.04 LTS",
-    cpu: "2 cores",
-    memory: "8 GB",
-    disk: "250 GB SSD",
-    lastSeen: "30 minutes ago",
-  },
-]

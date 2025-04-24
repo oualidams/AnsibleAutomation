@@ -9,11 +9,6 @@ import { BarChart3, Calendar, Cog, Database, LayoutDashboard, PlaySquare, Server
 
 const routes = [
   {
-    label: "Dashboard",
-    icon: LayoutDashboard,
-    href: "/dashboard",
-  },
-  {
     label: "Servers",
     icon: Server,
     href: "/servers",
@@ -29,19 +24,14 @@ const routes = [
     href: "/playbooks",
   },
   {
+    label: "Configurations",
+    icon: PlaySquare,
+    href: "/configurations",
+  },
+  {
     label: "History",
     icon: Terminal,
     href: "/executions",
-  },
-  {
-    label: "Test Backend",
-    icon: PlaySquare,
-    href: "/test-backend",
-  },
-  {
-    label: "Schedules",
-    icon: Calendar,
-    href: "/schedules",
   },
   {
     label: "Settings",

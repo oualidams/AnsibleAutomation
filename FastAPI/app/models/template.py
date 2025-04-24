@@ -11,4 +11,3 @@ class Template(Base):
     configurations = relationship("TemplateConfiguration", back_populates="template", cascade="all, delete-orphan")
 
 
-from models.template_configuration import TemplateConfiguration

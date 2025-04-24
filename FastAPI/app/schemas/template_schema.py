@@ -2,9 +2,19 @@
 from typing import List
 from pydantic import BaseModel
 
-class ConfigurationOrder(BaseModel):
+class ConfigurationBase(BaseModel):
     id: int
+    name: str
+    description: str
+    module: str
+    configuration: str
+
+    class Config:
+        orm_mode = True
+
+class ConfigurationOrder(BaseModel):
     position: int
+    configuration: ConfigurationBase
 
 class TemplateCreate(BaseModel):
     name: str

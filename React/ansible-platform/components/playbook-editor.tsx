@@ -45,7 +45,7 @@ export function PlaybookEditor() {
     name: "",
     description: "",
     content: "",
-    serverType: "",
+    //serverType: "",
     configurations: [] as number[],
   });
 
@@ -54,7 +54,7 @@ export function PlaybookEditor() {
       name: "",
       description: "",
       content: "",
-      serverType: "",
+      //serverType: "",
       configurations: [],
     });
   };
@@ -74,13 +74,13 @@ export function PlaybookEditor() {
     }
   };
 
-  const handleTemplateSelect = (type: string) => {
+  /*const handleTemplateSelect = (type: string) => {
     setPlaybook((prev) => ({
       ...prev,
       serverType: type,
       content: serverTemplates[type] || "",
     }));
-  };
+  };*/
 
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setPlaybook((prev) => ({
@@ -90,9 +90,9 @@ export function PlaybookEditor() {
   };
 
   const handleCreateTemplate = async () => {
-    const { name, serverType, content, description } = playbook;
+    const { name, content, description } = playbook;
 
-    if (!name || !serverType || !content) {
+    if (!name || !content) {
       toast({
         variant: "destructive",
         title: "Missing information",
@@ -108,9 +108,10 @@ export function PlaybookEditor() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
-          type: serverType,
+          //type: serverType,
           content,
           description,
+          configurations: playbook.configurations,
         }),
       });
 
@@ -224,25 +225,7 @@ export function PlaybookEditor() {
                 />
               </div>
 
-              <div className="grid gap-2">
-                <Label>Environment</Label>
-                <Select
-                  value={playbook.serverType}
-                  onValueChange={handleTemplateSelect}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a server environment" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="web">Web Server</SelectItem>
-                    <SelectItem value="database">Database Server</SelectItem>
-                    <SelectItem value="monitoring">
-                      Monitoring Server
-                    </SelectItem>
-                    <SelectItem value="custom">Custom (Blank)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            
 
               <div className="grid gap-2">
                 <Label>Configurations</Label>

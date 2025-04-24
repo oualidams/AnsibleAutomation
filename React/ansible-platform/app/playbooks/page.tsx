@@ -91,7 +91,7 @@ export function PlaybookEditor({
     const template = {
       ...templateData,
       configurations: selectedConfigIds.map((id, index) => ({
-        id,
+        id: id,
         position: index + 1,
       })),
     };
@@ -258,6 +258,22 @@ export default function PlaybooksPage() {
     fetchTemplates();
   }, []);
 
+  useEffect(() => {
+    const loadConfigNames = async () => {
+      if (!selectedPlaybook?.configurations) return;
+  
+      for (const config of selectedPlaybook.configurations) {
+        if (!configNames.has(config.id)) {
+          const name = await getConfigNameById(config.id);
+          setConfigNames((prev) => new Map(prev).set(config.id, name));
+        }
+      }
+    };
+  
+    loadConfigNames();
+  }, [selectedPlaybook]);
+  
+
   const handleCardClick = (playbook: any) => {
     setSelectedPlaybook(playbook);
     setIsDialogOpen(true);
@@ -330,32 +346,33 @@ export default function PlaybooksPage() {
 
       {/* Dialog for Playbook Details */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>{selectedPlaybook?.name}</DialogTitle>
-            <DialogDescription>
-              <p>
-                <strong>Description:</strong> {selectedPlaybook?.description}
-              </p>
-              <p>
-                <strong>Configurations:</strong>
-              </p>
-              <ul className="list-disc pl-5">
-                {selectedPlaybook?.configurations.map((config: any) => (
-                  <li key={config.id}>
-                    <span>
-                      {/* Fetch the configuration name using getConfigNameById */}
-                      {configNames.get(config.id) || (
-                        <span>{getConfigNameById(config.id)}</span> // Placeholder while fetching
-                      )}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </DialogDescription>
-          </DialogHeader>
-        </DialogContent>
-      </Dialog>
+  <DialogContent className="sm:max-w-[600px]">
+    <DialogHeader>
+      <DialogTitle>{selectedPlaybook?.name}</DialogTitle>
+      <DialogDescription>
+        
+          <strong>Description:</strong> {selectedPlaybook?.description}
+      
+        <p>
+          <strong>Configurations:</strong>
+        </p>
+        <br />
+        <ul className="space-y-3 pl-5">
+          {selectedPlaybook?.configurations
+            .sort((a: any, b: any) => a.position - b.position) // Sort configurations by position
+            .map((config: any) => (
+              <li key={config.configuration.id} className="flex items-center space-x-3">
+                {/* Optional: Add position number */}
+                <span className="text-gray-600 font-semibold">{config.position}.</span>
+                <span>{config.configuration.name}</span>
+              </li>
+            ))}
+        </ul>
+      </DialogDescription>
+    </DialogHeader>
+  </DialogContent>
+</Dialog>
+
     </div>
   );
 }

@@ -15,15 +15,26 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { MoreHorizontal, PlayCircle, Terminal, BarChart3 } from "lucide-react"
 
-export function ServerTable({ servers }) {
-  const [selectedServer, setSelectedServer] = useState(null)
+interface Server {
+  id: string;
+  name: string;
+  ip_address: string;
+  status: string;
+  environment: string;
+  os: string;
+  project: string;
+}
+
+export function ServerTable({ servers }: { servers: Server[] }) {
+  const [selectedServer, setSelectedServer] = useState<Server | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
 
-  const handleViewDetails = (server) => {
+  const handleViewDetails = (server: Server) => {
     setSelectedServer(server)
     setDialogOpen(true)
   }
 
+  
   return (
     <>
       <div className="rounded-md border">
@@ -35,7 +46,7 @@ export function ServerTable({ servers }) {
               <TableHead>Status</TableHead>
               <TableHead>Environment</TableHead>
               <TableHead>OS</TableHead>
-              <TableHead>Last Seen</TableHead>
+              <TableHead>Project</TableHead>
               <TableHead className="w-[80px]"></TableHead>
             </TableRow>
           </TableHeader>
@@ -43,13 +54,13 @@ export function ServerTable({ servers }) {
             {servers.map((server) => (
               <TableRow key={server.id}>
                 <TableCell className="font-medium">{server.name}</TableCell>
-                <TableCell>{server.ip}</TableCell>
+                <TableCell>{server.ip_address}</TableCell>
                 <TableCell>
                   <Badge variant={server.status === "online" ? "default" : "destructive"}>{server.status}</Badge>
                 </TableCell>
                 <TableCell>{server.environment}</TableCell>
                 <TableCell>{server.os}</TableCell>
-                <TableCell>{server.lastSeen}</TableCell>
+                <TableCell>{server.project}</TableCell>
                 <TableCell>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -82,7 +93,7 @@ export function ServerTable({ servers }) {
           </DialogHeader>
           {selectedServer && (
             <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 <div>
                   <h3 className="font-semibold mb-2">General Information</h3>
                   <div className="space-y-2 text-sm">
@@ -92,7 +103,7 @@ export function ServerTable({ servers }) {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">IP Address:</span>
-                      <span>{selectedServer.ip}</span>
+                      <span>{selectedServer.ip_address}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Status:</span>
@@ -108,26 +119,9 @@ export function ServerTable({ servers }) {
                       <span className="text-muted-foreground">OS:</span>
                       <span>{selectedServer.os}</span>
                     </div>
-                  </div>
-                </div>
-                <div>
-                  <h3 className="font-semibold mb-2">Hardware</h3>
-                  <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">CPU:</span>
-                      <span>{selectedServer.cpu}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Memory:</span>
-                      <span>{selectedServer.memory}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Disk:</span>
-                      <span>{selectedServer.disk}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Last Seen:</span>
-                      <span>{selectedServer.lastSeen}</span>
+                      <span className="text-muted-foreground">Project:</span>
+                      <span>{selectedServer.project}</span>
                     </div>
                   </div>
                 </div>
