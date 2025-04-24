@@ -1,22 +1,286 @@
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { PlaybookCard } from "@/components/playbook-card"
-import { PlaybookEditor } from "@/components/playbook-editor"
+"use client";
+
+import { useEffect, useState } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PlaybookCard } from "@/components/playbook-card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { toast } from "@/components/ui/use-toast";
+
+export function PlaybookEditor({
+  onCreate,
+}: {
+  onCreate: (template: any) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [configurations, setConfigurations] = useState<any[]>([]);
+  const [selectedConfigurations, setSelectedConfigurations] = useState<
+    Map<number, boolean>
+  >(new Map());
+  const [templateData, setTemplateData] = useState({
+    name: "",
+    description: "",
+  });
+
+  // Fetch available configurations
+  const fetchConfigurations = async () => {
+    try {
+      const response = await fetch(
+        "http://localhost:8000/configurations/getConfigs"
+      );
+      if (!response.ok) throw new Error("Failed to fetch configurations");
+
+      const data = await response.json();
+      setConfigurations(data);
+    } catch (error) {
+      console.error("Error fetching configurations:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch configurations. Please try again.",
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (open) {
+      fetchConfigurations();
+    }
+  }, [open]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setTemplateData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleCheckboxChange = (id: number, checked: boolean) => {
+    setSelectedConfigurations((prev) => new Map(prev).set(id, checked));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const selectedConfigIds = Array.from(selectedConfigurations.entries())
+      .filter(([_, checked]) => checked)
+      .map(([id]) => id);
+
+    if (
+      !templateData.name ||
+      !templateData.description ||
+      selectedConfigIds.length === 0
+    ) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description:
+          "Please fill in all fields and select at least one configuration.",
+      });
+      return;
+    }
+
+    const template = {
+      ...templateData,
+      configurations: selectedConfigIds.map((id, index) => ({
+        id,
+        position: index + 1,
+      })),
+    };
+
+    setIsLoading(true);
+    try {
+      await onCreate(template);
+      setOpen(false);
+      setTemplateData({ name: "", description: "" });
+      setSelectedConfigurations(new Map());
+    } catch (error) {
+      console.error("Error creating template:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <>
+      <Button onClick={() => setOpen(true)}>Create Template</Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Create New Template</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <Label htmlFor="name">Template Name</Label>
+              <Input
+                id="name"
+                name="name"
+                value={templateData.name}
+                onChange={handleInputChange}
+                placeholder="Enter template name"
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="description">Description</Label>
+              <Input
+                id="description"
+                name="description"
+                value={templateData.description}
+                onChange={handleInputChange}
+                placeholder="Enter template description"
+                required
+              />
+            </div>
+            <div>
+              <Label>Configurations</Label>
+              <div className="space-y-2">
+                {configurations.map((config) => (
+                  <div key={config.id} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`config-${config.id}`}
+                      checked={selectedConfigurations.get(config.id) || false}
+                      onCheckedChange={(checked) =>
+                        handleCheckboxChange(config.id, checked as boolean)
+                      }
+                    />
+                    <Label htmlFor={`config-${config.id}`}>{config.name}</Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? "Creating..." : "Create Template"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
 
 export default function PlaybooksPage() {
+  const [playbooks, setPlaybooks] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedPlaybook, setSelectedPlaybook] = useState<any | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [configNames, setConfigNames] = useState<Map<number, string>>(
+    new Map()
+  );
+
+  const fetchTemplates = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(
+        "http://localhost:8000/templates/getTemplates"
+      );
+      if (!response.ok) throw new Error("Failed to fetch templates");
+
+      const data = await response.json();
+      setPlaybooks(data);
+      toast({
+        title: "Templates Fetched",
+        description: "Successfully retrieved templates from the backend.",
+      });
+    } catch (error) {
+      console.error("Error fetching templates:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch templates. Please try again.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCreateTemplate = async (template: any) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch("http://localhost:8000/templates/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(template),
+      });
+      if (!response.ok) throw new Error("Failed to create template");
+
+      const data = await response.json();
+      toast({
+        title: "Template Created",
+        description:
+          typeof data === "string"
+            ? data
+            : data.message || "Template successfully created.",
+      });
+      fetchTemplates(); // Refresh the templates after creation
+    } catch (error) {
+      console.error("Error creating template:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to create template. Please try again.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Get the configuration name by ID and store it in state
+  const getConfigNameById = async (id: number) => {
+    if (configNames.has(id)) return configNames.get(id);
+
+    try {
+      const response = await fetch(
+        `http://localhost:8000/configurations/getConfigById/${id}`
+      );
+      if (!response.ok) throw new Error("Failed to fetch configuration name");
+
+      const data = await response.json();
+      const name = data.name; // Assuming the backend returns { name: "Configuration Name" }
+
+      setConfigNames((prev) => new Map(prev).set(id, name));
+      return name;
+    } catch (error) {
+      console.error(`Error fetching configuration name for ID ${id}:`, error);
+      return `Unknown Configuration (ID: ${id})`;
+    }
+  };
+
+  useEffect(() => {
+    fetchTemplates();
+  }, []);
+
+  const handleCardClick = (playbook: any) => {
+    setSelectedPlaybook(playbook);
+    setIsDialogOpen(true);
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Ansible Playbooks</h1>
-          <p className="text-muted-foreground">Manage and execute your automation playbooks</p>
+          <h1 className="text-2xl font-bold tracking-tight">
+            Ansible Templates
+          </h1>
+          <p className="text-muted-foreground">
+            Manage and execute your automation templates
+          </p>
         </div>
-        <PlaybookEditor />
+        <PlaybookEditor onCreate={handleCreateTemplate} />
       </div>
 
       <Tabs defaultValue="all">
         <div className="flex justify-between items-center">
           <TabsList>
-            <TabsTrigger value="all">All Playbooks</TabsTrigger>
+            <TabsTrigger value="all">All Templates</TabsTrigger>
             <TabsTrigger value="recent">Recently Run</TabsTrigger>
             <TabsTrigger value="favorites">Favorites</TabsTrigger>
           </TabsList>
@@ -25,7 +289,9 @@ export default function PlaybooksPage() {
         <TabsContent value="all" className="mt-6">
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {playbooks.map((playbook) => (
-              <PlaybookCard key={playbook.id} playbook={playbook} />
+              <div key={playbook.id} onClick={() => handleCardClick(playbook)}>
+                <PlaybookCard playbook={playbook} />
+              </div>
             ))}
           </div>
         </TabsContent>
@@ -36,7 +302,12 @@ export default function PlaybooksPage() {
               .filter((p) => p.lastRun)
               .slice(0, 3)
               .map((playbook) => (
-                <PlaybookCard key={playbook.id} playbook={playbook} />
+                <div
+                  key={playbook.id}
+                  onClick={() => handleCardClick(playbook)}
+                >
+                  <PlaybookCard playbook={playbook} />
+                </div>
               ))}
           </div>
         </TabsContent>
@@ -46,68 +317,45 @@ export default function PlaybooksPage() {
             {playbooks
               .filter((p) => p.favorite)
               .map((playbook) => (
-                <PlaybookCard key={playbook.id} playbook={playbook} />
+                <div
+                  key={playbook.id}
+                  onClick={() => handleCardClick(playbook)}
+                >
+                  <PlaybookCard playbook={playbook} />
+                </div>
               ))}
           </div>
         </TabsContent>
       </Tabs>
-    </div>
-  )
-}
 
-const playbooks = [
-  {
-    id: 1,
-    name: "Web Server Setup",
-    description: "Installs and configures Nginx, PHP, and related packages for web servers",
-    tasks: 12,
-    lastRun: "2 hours ago",
-    status: "success",
-    favorite: true,
-  },
-  {
-    id: 2,
-    name: "Database Backup",
-    description: "Creates scheduled backups of PostgreSQL databases and uploads to S3",
-    tasks: 8,
-    lastRun: "1 day ago",
-    status: "success",
-    favorite: true,
-  },
-  {
-    id: 3,
-    name: "Security Updates",
-    description: "Applies latest security patches and updates to all servers",
-    tasks: 6,
-    lastRun: "3 days ago",
-    status: "failed",
-    favorite: false,
-  },
-  {
-    id: 4,
-    name: "Load Balancer Configuration",
-    description: "Sets up HAProxy load balancer with SSL termination",
-    tasks: 15,
-    lastRun: null,
-    status: null,
-    favorite: false,
-  },
-  {
-    id: 5,
-    name: "Docker Deployment",
-    description: "Deploys containerized applications to Docker hosts",
-    tasks: 10,
-    lastRun: "1 week ago",
-    status: "success",
-    favorite: true,
-  },
-  {
-    id: 6,
-    name: "Monitoring Setup",
-    description: "Installs and configures Prometheus and Grafana for monitoring",
-    tasks: 18,
-    lastRun: null,
-    status: null,
-    favorite: false,
-  },
-]
+      {/* Dialog for Playbook Details */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>{selectedPlaybook?.name}</DialogTitle>
+            <DialogDescription>
+              <p>
+                <strong>Description:</strong> {selectedPlaybook?.description}
+              </p>
+              <p>
+                <strong>Configurations:</strong>
+              </p>
+              <ul className="list-disc pl-5">
+                {selectedPlaybook?.configurations.map((config: any) => (
+                  <li key={config.id}>
+                    <span>
+                      {/* Fetch the configuration name using getConfigNameById */}
+                      {configNames.get(config.id) || (
+                        <span>{getConfigNameById(config.id)}</span> // Placeholder while fetching
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

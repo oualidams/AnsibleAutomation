@@ -1,7 +1,7 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -10,79 +10,85 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Label } from "@/components/ui/label"
-import { PlayCircle } from "lucide-react"
-import { useToast } from "@/components/ui/use-toast"
-import { ExecutionMonitor } from "@/components/execution-monitor"
-import { useWebSocket } from "@/contexts/websocket-context"
-import { Skeleton } from "@/components/ui/skeleton"
-import { mockServerList } from "@/lib/mock-data"
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { PlayCircle } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
+import { ExecutionMonitor } from "@/components/execution-monitor";
+import { useWebSocket } from "@/contexts/websocket-context";
+import { Skeleton } from "@/components/ui/skeleton";
+import { mockServerList } from "@/lib/mock-data";
 
 export function ExecutePlaybook({ playbook }) {
-  const [open, setOpen] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [selectedServers, setSelectedServers] = useState([])
-  const [availableServers, setAvailableServers] = useState([])
-  const [executionId, setExecutionId] = useState<string | null>(null)
-  const [monitorOpen, setMonitorOpen] = useState(false)
-  const { toast } = useToast()
-  const { isConnected, sendMessage, lastMessage, mockMode } = useWebSocket()
+  const [open, setOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedServers, setSelectedServers] = useState([]);
+  const [availableServers, setAvailableServers] = useState([]);
+  const [executionId, setExecutionId] = useState<string | null>(null);
+  const [monitorOpen, setMonitorOpen] = useState(false);
+  const { toast } = useToast();
+  const { isConnected, sendMessage, lastMessage, mockMode } = useWebSocket();
 
   // Fetch available servers when dialog opens
   useEffect(() => {
     if (open) {
-      setIsLoading(true)
+      setIsLoading(true);
 
       if (mockMode) {
         // Use mock data in mock mode
         setTimeout(() => {
-          setAvailableServers(mockServerList)
-          setIsLoading(false)
-        }, 500)
+          setAvailableServers(mockServerList);
+          setIsLoading(false);
+        }, 500);
       } else if (isConnected) {
         // Request server list from WebSocket
         sendMessage({
           action: "get-servers",
-        })
+        });
       } else {
         // Not connected and not in mock mode yet
-        setAvailableServers([])
-        setIsLoading(false)
+        setAvailableServers([]);
+        setIsLoading(false);
       }
     }
-  }, [open, isConnected, sendMessage, mockMode])
+  }, [open, isConnected, sendMessage, mockMode]);
 
   // Process incoming WebSocket messages
   useEffect(() => {
     if (lastMessage) {
       if (lastMessage.type === "server-list") {
-        setAvailableServers(lastMessage.data || [])
-        setIsLoading(false)
+        setAvailableServers(lastMessage.data || []);
+        setIsLoading(false);
       } else if (lastMessage.type === "execution-started") {
-        setExecutionId(lastMessage.data.executionId)
+        setExecutionId(lastMessage.data.executionId);
         toast({
           title: "Playbook Execution Started",
           description: `Executing "${playbook.name}" on ${selectedServers.length} servers.`,
-        })
-        setOpen(false)
-        setMonitorOpen(true)
-        setSelectedServers([])
+        });
+        setOpen(false);
+        setMonitorOpen(true);
+        setSelectedServers([]);
       }
     }
-  }, [lastMessage, playbook.name, selectedServers.length, toast])
+  }, [lastMessage, playbook.name, selectedServers.length, toast]);
 
   const handleServerToggle = (serverId) => {
     setSelectedServers((prevSelected) => {
       if (prevSelected.includes(serverId)) {
-        return prevSelected.filter((id) => id !== serverId)
+        return prevSelected.filter((id) => id !== serverId);
       } else {
-        return [...prevSelected, serverId]
+        return [...prevSelected, serverId];
       }
-    })
-  }
+    });
+  };
 
   const handleExecute = async () => {
     if (selectedServers.length === 0) {
@@ -90,11 +96,11 @@ export function ExecutePlaybook({ playbook }) {
         variant: "destructive",
         title: "Error",
         description: "Please select at least one server.",
-      })
-      return
+      });
+      return;
     }
 
-    setIsLoading(true)
+    setIsLoading(true);
 
     try {
       // Send execution request via WebSocket or use mock mode
@@ -103,17 +109,17 @@ export function ExecutePlaybook({ playbook }) {
         playbookId: playbook.id,
         targetServers: selectedServers,
         extraVars: {},
-      })
+      });
     } catch (error) {
-      console.error("Error executing playbook:", error)
+      console.error("Error executing playbook:", error);
       toast({
         variant: "destructive",
         title: "Error",
         description: "Failed to execute playbook. Please try again.",
-      })
-      setIsLoading(false)
+      });
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <>
@@ -121,13 +127,15 @@ export function ExecutePlaybook({ playbook }) {
         <DialogTrigger asChild>
           <Button className="w-full gap-1" variant="default">
             <PlayCircle className="h-4 w-4" />
-            Run Playbook
+            Run Template
           </Button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Execute Playbook</DialogTitle>
-            <DialogDescription>Select target servers to run "{playbook.name}" playbook.</DialogDescription>
+            <DialogTitle>Execute</DialogTitle>
+            <DialogDescription>
+              Select target servers to run "{playbook.name}" playbook.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="py-4">
@@ -160,23 +168,35 @@ export function ExecutePlaybook({ playbook }) {
                         </div>
                       ))
                   : availableServers.map((server) => (
-                      <div key={server.id} className="flex items-center space-x-2">
+                      <div
+                        key={server.id}
+                        className="flex items-center space-x-2"
+                      >
                         <Checkbox
                           id={`server-${server.id}`}
                           checked={selectedServers.includes(server.id)}
                           onCheckedChange={() => handleServerToggle(server.id)}
                         />
-                        <Label htmlFor={`server-${server.id}`} className="flex-1">
+                        <Label
+                          htmlFor={`server-${server.id}`}
+                          className="flex-1"
+                        >
                           {server.name}
-                          <span className="ml-2 text-xs text-muted-foreground">({server.environment})</span>
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            ({server.environment})
+                          </span>
                         </Label>
                       </div>
                     ))}
                 {!isLoading && availableServers.length === 0 && (
-                  <p className="text-sm text-muted-foreground">No servers available.</p>
+                  <p className="text-sm text-muted-foreground">
+                    No servers available.
+                  </p>
                 )}
               </div>
-              <div className="mt-2 text-xs text-muted-foreground">{selectedServers.length} server(s) selected</div>
+              <div className="mt-2 text-xs text-muted-foreground">
+                {selectedServers.length} server(s) selected
+              </div>
             </div>
           </div>
 
@@ -192,8 +212,12 @@ export function ExecutePlaybook({ playbook }) {
       </Dialog>
 
       {executionId && (
-        <ExecutionMonitor executionId={executionId} open={monitorOpen} onClose={() => setMonitorOpen(false)} />
+        <ExecutionMonitor
+          executionId={executionId}
+          open={monitorOpen}
+          onClose={() => setMonitorOpen(false)}
+        />
       )}
     </>
-  )
+  );
 }

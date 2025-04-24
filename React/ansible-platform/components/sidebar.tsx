@@ -24,12 +24,12 @@ const routes = [
     href: "/inventory",
   },
   {
-    label: "Playbooks",
+    label: "Templates",
     icon: PlaySquare,
     href: "/playbooks",
   },
   {
-    label: "Executions",
+    label: "History",
     icon: Terminal,
     href: "/executions",
   },

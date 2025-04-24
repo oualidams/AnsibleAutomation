@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Depends
+from fastapi import APIRouter, HTTPException, Request, Depends
 from sqlalchemy.orm import Session
 from configuration.config import get_db
 from models.cmd import Configuration
@@ -16,17 +16,16 @@ async def create_config(cmd: CmdCreate, request: Request, db: Session = Depends(
     db.refresh(db_configuration)
     return db_configuration
 
-@router.get("/getConfigs")
-async def get_configs():
-    configs = ["Config1", "Config2", "Config3"]
-    print(configs)
-    return {"configs": configs}
+@router.get("/getConfigs", response_model=list[CmdOut])
+async def get_configs(db: Session = Depends(get_db)):
+    return db.query(Configuration).all()
 
-@router.get("/getConfig/{config_id}")
-async def get_config(config_id: int):
-    config = f"Config{config_id}"
-    print(config)
-    return {"config": config}
+@router.get("/getConfigById/{id}")
+def get_config_by_id(id: int, db: Session = Depends(get_db)):
+    config = db.query(Configuration).filter(Configuration.id == id).first()
+    if not config:
+        raise HTTPException(status_code=404, detail="Configuration not found")
+    return {"id": config.id, "name": config.name}
 
 @router.put("/updateConfig/{config_id}")
 async def update_config(config_id: int):

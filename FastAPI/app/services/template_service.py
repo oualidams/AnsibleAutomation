@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session, joinedload
+from models.template_configuration import TemplateConfiguration
 from configuration.config import get_db
 from models.template import Template
+from typing import List
 from models.cmd import Configuration
 from schemas.template_schema import TemplateCreate, TemplateOut
 
@@ -9,6 +11,7 @@ router = APIRouter()
 
 @router.post("/create", response_model=TemplateOut)
 def create_template(template_data: TemplateCreate, db: Session = Depends(get_db)):
+    # Create the Template
     template = Template(
         name=template_data.name,
         description=template_data.description
@@ -17,26 +20,37 @@ def create_template(template_data: TemplateCreate, db: Session = Depends(get_db)
     db.commit()
     db.refresh(template)
 
-    if template_data.configuration_ids:
-        configs = db.query(Configuration).filter(Configuration.id.in_(template_data.configuration_ids)).all()
-        for config in configs:
-            config.template_id = template.id
-        db.commit()
+    # If configurations are provided, associate them with the template
+    if template_data.configurations:
+        for config_data in template_data.configurations:
+            # Get the Configuration by ID
+            config = db.query(Configuration).filter(Configuration.id == config_data.id).first()
+            if config:
+                # Create the TemplateConfiguration instance
+                template_configuration = TemplateConfiguration(
+                    template_id=template.id,
+                    configuration_id=config.id,
+                    position=config_data.position
+                )
+                # Add the template configuration to the database
+                db.add(template_configuration)
+        db.commit()  # Commit the changes to the TemplateConfiguration table
 
-    db.refresh(template)
+    db.refresh(template)  # Refresh the template to get the updated data
     return template
 
-@router.get("/getTemplates")
-async def get_templates():
-    templates = ["Template1", "Template2", "Template3"]
-    print(templates)
-    return {"templates": templates}
 
-@router.get("/getTemplate/{template_id}")
-async def get_template(template_id: int):
-    template = f"Template{template_id}"
-    print(template)
-    return {"template": template}
+@router.get("/getTemplates", response_model=List[TemplateOut])
+def get_templates(db: Session = Depends(get_db)):
+    templates = db.query(Template).options(joinedload(Template.configurations)).all()
+    return templates
+
+@router.get("/getTemplate/{template_id}", response_model=TemplateOut)
+def get_template(template_id: int, db: Session = Depends(get_db)):
+    template = db.query(Template).options(joinedload(Template.configurations)).filter(Template.id == template_id).first()
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+    return template
 
 @router.put("/updateTemplate/{template_id}")
 async def update_template(template_id: int):

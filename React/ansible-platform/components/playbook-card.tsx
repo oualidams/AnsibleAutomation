@@ -1,19 +1,32 @@
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { FileCode, Clock } from "lucide-react"
-import { ExecutePlaybook } from "@/components/execute-playbook"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { FileCode, Clock } from "lucide-react";
+import { ExecutePlaybook } from "@/components/execute-playbook";
 
-export function PlaybookCard({ playbook }) {
+interface Playbook {
+  name: string;
+  description: string;
+  tasks: number;
+  lastRun?: string;
+}
+
+export function PlaybookCard({ playbook }: { playbook: Playbook }) {
   return (
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <CardTitle className="text-base">{playbook.name}</CardTitle>
-          {playbook.status && (
-            <Badge variant={playbook.status === "success" ? "default" : "destructive"}>{playbook.status}</Badge>
-          )}
         </div>
-        <CardDescription className="line-clamp-2 text-xs">{playbook.description}</CardDescription>
+        <CardDescription className="line-clamp-2 text-xs">
+          {playbook.description}
+        </CardDescription>
       </CardHeader>
       <CardContent className="pb-3">
         <div className="flex items-center gap-4 text-sm text-muted-foreground">
@@ -33,5 +46,5 @@ export function PlaybookCard({ playbook }) {
         <ExecutePlaybook playbook={playbook} />
       </CardFooter>
     </Card>
-  )
+  );
 }
