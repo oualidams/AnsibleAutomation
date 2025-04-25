@@ -31,7 +31,7 @@ export const WebSocketProvider = ({
   const [isConnected, setIsConnected] = useState(false)
   const [lastMessage, setLastMessage] = useState<any>(null)
   const [mockMode, setMockMode] = useState(false)
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout>()
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const reconnectAttemptsRef = useRef(0)
   const maxReconnectAttempts = 3
   const { toast } = useToast()
@@ -125,7 +125,7 @@ export const WebSocketProvider = ({
 
       ws.onerror = (event) => {
         // The error event doesn't contain useful information, just log that an error occurred
-        console.error("WebSocket connection error occurred")
+        //console.error("WebSocket connection error occurred")
 
         // Don't call ws.close() here as the connection will automatically close on error
         // and trigger the onclose handler

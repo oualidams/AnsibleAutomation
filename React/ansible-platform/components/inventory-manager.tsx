@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -24,7 +24,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { PlusCircle, MoreHorizontal, Download, Server, Globe, Tag } from "lucide-react"
+import { PlusCircle, MoreHorizontal, Download, Server, Globe, Tag, Folder } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 
 // Sample inventory groups
@@ -73,76 +73,10 @@ const defaultGroups = [
   },
 ]
 
-// Sample servers
-const defaultServers = [
-  {
-    id: 1,
-    name: "web-server-01",
-    ip: "192.168.1.101",
-    groups: ["Web Servers", "Production"],
-    variables: {
-      ansible_host: "192.168.1.101",
-      ansible_user: "webadmin",
-    },
-  },
-  {
-    id: 2,
-    name: "web-server-02",
-    ip: "192.168.1.102",
-    groups: ["Web Servers", "Production"],
-    variables: {
-      ansible_host: "192.168.1.102",
-      ansible_user: "webadmin",
-    },
-  },
-  {
-    id: 3,
-    name: "db-server-01",
-    ip: "192.168.1.201",
-    groups: ["Database Servers", "Production"],
-    variables: {
-      ansible_host: "192.168.1.201",
-      ansible_user: "dbadmin",
-      postgresql_master: "true",
-    },
-  },
-  {
-    id: 4,
-    name: "db-server-02",
-    ip: "192.168.1.202",
-    groups: ["Database Servers", "Production"],
-    variables: {
-      ansible_host: "192.168.1.202",
-      ansible_user: "dbadmin",
-      postgresql_master: "false",
-    },
-  },
-  {
-    id: 5,
-    name: "lb-server-01",
-    ip: "192.168.1.251",
-    groups: ["Load Balancers", "Production"],
-    variables: {
-      ansible_host: "192.168.1.251",
-      ansible_user: "sysadmin",
-    },
-  },
-  {
-    id: 6,
-    name: "monitor-server-01",
-    ip: "192.168.1.240",
-    groups: ["Monitoring", "Production"],
-    variables: {
-      ansible_host: "192.168.1.240",
-      ansible_user: "monitor",
-    },
-  },
-]
-
 export function InventoryManager() {
   const [activeTab, setActiveTab] = useState("groups")
   const [groups, setGroups] = useState(defaultGroups)
-  const [servers, setServers] = useState(defaultServers)
+  const [servers, setServers] = useState<any[]>([])
   const [newGroupDialogOpen, setNewGroupDialogOpen] = useState(false)
   const [newServerDialogOpen, setNewServerDialogOpen] = useState(false)
   const [editGroupDialogOpen, setEditGroupDialogOpen] = useState(false)
@@ -367,6 +301,17 @@ export function InventoryManager() {
     })
   }
 
+    const [loading, setLoading] = useState(true)
+  
+    useEffect(() => {
+      fetch("http://localhost:8000/servers/getServers")
+        .then((res) => res.json())
+        .then((data) => {
+          setServers(data)
+          setLoading(false)
+        })
+        .catch(() => setLoading(false))
+    }, [])
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -468,20 +413,18 @@ export function InventoryManager() {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
-                    <CardDescription className="text-xs">{server.ip}</CardDescription>
+                    <CardDescription className="text-xs">{server.ip_address}</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
                       <div className="flex items-center gap-1 text-sm">
-                        <Globe className="h-4 w-4 text-muted-foreground" />
-                        <span>{server.variables.ansible_host}</span>
+                        <Folder className="h-4 w-4 text-muted-foreground" />
+                        <span>{server.project}</span>
                       </div>
                       <div className="flex flex-wrap gap-1">
-                        {server.groups.map((group, index) => (
-                          <Badge key={index} variant="outline" className="text-xs">
-                            {group}
+                          <Badge key="environment" variant="outline" className="text-xs">
+                            {server.environment}
                           </Badge>
-                        ))}
                       </div>
                     </div>
                   </CardContent>

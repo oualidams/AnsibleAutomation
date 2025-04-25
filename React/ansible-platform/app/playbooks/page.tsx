@@ -10,11 +10,20 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/components/ui/use-toast";
+import { MoreVertical } from "lucide-react";
+import { CardFooter } from "@/components/ui/card";
+import { ExecutePlaybook } from "@/components/execute-playbook";
 
 export function PlaybookEditor({
   onCreate,
@@ -272,7 +281,27 @@ export default function PlaybooksPage() {
   
     loadConfigNames();
   }, [selectedPlaybook]);
-  
+
+  const handleDeleteTemplate = async (template: any) => {
+    if (!window.confirm(`Are you sure you want to delete the template "${template.name}"?`)) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch(`http://localhost:8000/templates/delete/${template.id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) throw new Error("Deletion failed");
+
+      toast({ title: "Deleted", description: "Configuration deleted successfully." });
+      fetchTemplates();
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "Deletion failed." });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleCardClick = (playbook: any) => {
     setSelectedPlaybook(playbook);
@@ -303,14 +332,41 @@ export default function PlaybooksPage() {
         </div>
 
         <TabsContent value="all" className="mt-6">
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {playbooks.map((playbook) => (
-              <div key={playbook.id} onClick={() => handleCardClick(playbook)}>
-                <PlaybookCard playbook={playbook} />
-              </div>
-            ))}
-          </div>
-        </TabsContent>
+  <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+    {playbooks.map((playbook) => (
+      <div key={playbook.id} className="relative group border rounded-lg p-4 bg-white shadow">
+        <div className="absolute top-2 right-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <MoreVertical className="w-5 h-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => handleCardClick(playbook)}>
+                View Details
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleDeleteTemplate(playbook)}>
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        <div>
+          <h2 className="font-semibold">{playbook.name}</h2>
+          <p className="text-sm text-gray-500">{playbook.description}</p>
+          <p className="text-xs mt-2 text-gray-400">
+            {playbook.configurations?.length || 0} configurations
+          </p>
+        </div>
+        <br/>
+        <CardFooter>
+        <ExecutePlaybook playbook={playbook} />
+      </CardFooter>
+      </div>
+    ))}
+  </div>
+</TabsContent>
 
         <TabsContent value="recent" className="mt-6">
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -345,31 +401,34 @@ export default function PlaybooksPage() {
       </Tabs>
 
       {/* Dialog for Playbook Details */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+<Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
   <DialogContent className="sm:max-w-[600px]">
-    <DialogHeader>
-      <DialogTitle>{selectedPlaybook?.name}</DialogTitle>
-      <DialogDescription>
+    {selectedPlaybook && (
+      <div className="relative group border rounded-lg p-4 bg-white shadow">
         
-          <strong>Description:</strong> {selectedPlaybook?.description}
-      
-        <p>
-          <strong>Configurations:</strong>
-        </p>
-        <br />
-        <ul className="space-y-3 pl-5">
-          {selectedPlaybook?.configurations
-            .sort((a: any, b: any) => a.position - b.position) // Sort configurations by position
-            .map((config: any) => (
-              <li key={config.configuration.id} className="flex items-center space-x-3">
-                {/* Optional: Add position number */}
-                <span className="text-gray-600 font-semibold">{config.position}.</span>
-                <span>{config.configuration.name}</span>
-              </li>
-            ))}
-        </ul>
-      </DialogDescription>
-    </DialogHeader>
+        <DialogHeader>
+          <DialogTitle>{selectedPlaybook.name}</DialogTitle>
+          <DialogDescription>
+            <div>
+              <strong>Description:</strong> {selectedPlaybook.description}
+            </div>
+            <div className="mt-2">
+              <strong>Configurations:</strong>
+              <ul className="space-y-3 pl-5 mt-2">
+                {selectedPlaybook.configurations
+                  .sort((a: any, b: any) => a.position - b.position)
+                  .map((config: any) => (
+                    <li key={config.configuration.id} className="flex items-center space-x-3">
+                      <span className="text-gray-600 font-semibold">{config.position}.</span>
+                      <span>{config.configuration.name}</span>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          </DialogDescription>
+        </DialogHeader>
+      </div>
+    )}
   </DialogContent>
 </Dialog>
 

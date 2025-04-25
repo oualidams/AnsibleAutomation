@@ -27,17 +27,30 @@ def get_config_by_id(id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Configuration not found")
     return {"id": config.id, "name": config.name}
 
-@router.put("/updateConfig/{config_id}")
-async def update_config(config_id: int):
-    updated_config = f"Config{config_id} updated successfully"
-    print(updated_config)
-    return {"message": updated_config}
+@router.put("/updateConfig/{config_id}", response_model=CmdOut)
+def update_config(config_id: int, updated_cmd: CmdCreate, db: Session = Depends(get_db)):
+    db_config = db.query(Configuration).filter(Configuration.id == config_id).first()
+    if not db_config:
+        raise HTTPException(status_code=404, detail="Configuration not found")
 
-@router.delete("/deleteConfig/{config_id}")
-async def delete_config(config_id: int):
-    deleted_config = f"Config{config_id} deleted successfully"
-    print(deleted_config)
-    return {"message": deleted_config}
+    db_config.name = updated_cmd.name
+    db_config.description = updated_cmd.description
+    db_config.module = updated_cmd.module
+    db_config.configuration = updated_cmd.configuration
+
+    db.commit()
+    db.refresh(db_config)
+    return db_config
+
+@router.delete("/delete/{config_id}")
+def delete_config(config_id: int, db: Session = Depends(get_db)):
+    db_config = db.query(Configuration).filter(Configuration.id == config_id).first()
+    if not db_config:
+        raise HTTPException(status_code=404, detail="Configuration not found")
+
+    db.delete(db_config)
+    db.commit()
+    return {"message": "Configuration deleted successfully"}
 
 @router.get("/getConfigByName/{config_name}")
 async def get_config_by_name(config_name: str):

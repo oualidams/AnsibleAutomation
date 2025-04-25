@@ -6,15 +6,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { FileCode, Clock } from "lucide-react";
+import { FileCode } from "lucide-react";
 import { ExecutePlaybook } from "@/components/execute-playbook";
 
 interface Playbook {
+  id: number;
   name: string;
   description: string;
-  tasks: number;
-  lastRun?: string;
+  configurations: any[]; // Array of configurations
 }
 
 export function PlaybookCard({ playbook }: { playbook: Playbook }) {
@@ -32,14 +31,10 @@ export function PlaybookCard({ playbook }: { playbook: Playbook }) {
         <div className="flex items-center gap-4 text-sm text-muted-foreground">
           <div className="flex items-center gap-1">
             <FileCode className="h-3.5 w-3.5" />
-            <span>{playbook.tasks} tasks</span>
+            <span>
+              {playbook.configurations?.length || 0} configurations
+            </span>
           </div>
-          {playbook.lastRun && (
-            <div className="flex items-center gap-1">
-              <Clock className="h-3.5 w-3.5" />
-              <span>{playbook.lastRun}</span>
-            </div>
-          )}
         </div>
       </CardContent>
       <CardFooter>

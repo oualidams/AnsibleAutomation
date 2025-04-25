@@ -52,17 +52,47 @@ def get_template(template_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Template not found")
     return template
 
-@router.put("/updateTemplate/{template_id}")
-async def update_template(template_id: int):
-    updated_template = f"Template{template_id} updated successfully"
-    print(updated_template)
-    return {"message": updated_template}
+@router.put("/updateTemplate/{template_id}", response_model=TemplateOut)
+def update_template(template_id: int, template_data: TemplateCreate, db: Session = Depends(get_db)):
+    template = db.query(Template).filter(Template.id == template_id).first()
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
 
-@router.delete("/deleteTemplate/{template_id}")
-async def delete_template(template_id: int):
-    deleted_template = f"Template{template_id} deleted successfully"
-    print(deleted_template)
-    return {"message": deleted_template}
+    # Update basic fields
+    template.name = template_data.name
+    template.description = template_data.description
+
+    # Remove old TemplateConfiguration links
+    db.query(TemplateConfiguration).filter(TemplateConfiguration.template_id == template_id).delete()
+
+    # Add new TemplateConfiguration links
+    for config_data in template_data.configurations:
+        config = db.query(Configuration).filter(Configuration.id == config_data.id).first()
+        if config:
+            template_configuration = TemplateConfiguration(
+                template_id=template.id,
+                configuration_id=config.id,
+                position=config_data.position
+            )
+            db.add(template_configuration)
+
+    db.commit()
+    db.refresh(template)
+    return template
+
+@router.delete("/delete/{template_id}")
+def delete_template(template_id: int, db: Session = Depends(get_db)):
+    template = db.query(Template).filter(Template.id == template_id).first()
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    # Delete related TemplateConfiguration entries
+    db.query(TemplateConfiguration).filter(TemplateConfiguration.template_id == template_id).delete()
+    db.delete(template)
+    db.commit()
+    return {"message": "Template deleted successfully"}
+
+# ...existing code...
 
 @router.get("/getTemplateByName/{template_name}")
 async def get_template_by_name(template_name: str):
