@@ -1,0 +1,7 @@
+- hosts: string
+  name: SG Server Setup3
+  tasks:
+  - args: python train.py --model bert-base-uncased --epochs 5 --batch-size 32 --dataset
+      custom_data.csv
+    module: ml_pipeline
+    name: Train BERT Model

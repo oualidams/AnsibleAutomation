@@ -23,6 +23,12 @@ def create_template(template_data: TemplateCreate, db: Session = Depends(get_db)
     # If configurations are provided, associate them with the template
     if template_data.configurations:
         for config_data in template_data.configurations:
+            # Validate the configuration field
+            if not hasattr(config_data, "configuration") or not config_data.configuration:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Configuration field is missing for configuration ID {config_data.id}"
+                )
             # Get the Configuration by ID
             config = db.query(Configuration).filter(Configuration.id == config_data.id).first()
             if config:
@@ -38,6 +44,36 @@ def create_template(template_data: TemplateCreate, db: Session = Depends(get_db)
 
     db.refresh(template)  # Refresh the template to get the updated data
     return template
+
+@router.post("/execute/{template_id}")
+def execute_template(template_id: int, selected_servers: List[str], db: Session = Depends(get_db)):
+    template = db.query(Template).options(joinedload(Template.configurations)).filter(Template.id == template_id).first()
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    # Generate the playbook file
+    playbook_path = f"/home/oualidams/Desktop/AnsibleAutomation/Ansible/{template.name}.yml"
+    playbook_content = {
+        "name": template.name,
+        "hosts": ",".join(selected_servers),  # Use selected servers as hosts
+        "tasks": [
+            {
+                "name": config.configuration.name,
+                "module": config.configuration.module,
+                "args": config.configuration.configuration,
+            }
+            for config in template.configurations
+        ],
+    }
+
+    try:
+        with open(playbook_path, "w") as playbook_file:
+            import yaml
+            yaml.dump([playbook_content], playbook_file, default_flow_style=False)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate playbook: {str(e)}")
+
+    return {"message": "Playbook generated successfully", "playbook_path": playbook_path}
 
 
 @router.get("/getTemplates", response_model=List[TemplateOut])
