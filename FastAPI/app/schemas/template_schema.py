@@ -12,20 +12,28 @@ class ConfigurationBase(BaseModel):
     class Config:
         orm_mode = True
 
-class ConfigurationOrder(BaseModel):
+class ConfigurationOrderOut(BaseModel):
     position: int
     configuration: ConfigurationBase
+
+    class Config:
+        orm_mode = True
+
+class ConfigurationOrderCreate(BaseModel):
+    id: int
+    position: int
 
 class TemplateCreate(BaseModel):
     name: str
     description: str
-    configurations: List[ConfigurationOrder]
+    configurations: List[ConfigurationOrderCreate]  # <- En entrée, juste id + position
 
 class TemplateOut(BaseModel):
     id: int
     name: str
     description: str
-    configurations: List[ConfigurationOrder]  # You can enrich this with full config data too
+    configurations: List[ConfigurationOrderOut]  # <- En sortie, info complète
 
     class Config:
         orm_mode = True
+

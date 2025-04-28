@@ -1,42 +1,24 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 from models.logs import Log
-
+from schemas.log_schema import LogCreate, LogOut
+from configuration.config import get_db
 
 router = APIRouter()
 
-@router.post("/create")
-async def create_log():
-    new_log = "Log created successfully"
-    print(new_log)
-    return {"message": new_log}
+@router.post("/create", response_model=LogOut)
+def create_log(log_data: LogCreate, db: Session = Depends(get_db)):
+    log = Log(
+        template_id=log_data.template_id,
+        server_name=log_data.server_name,
+        log_content=log_data.log_content,
+        status=log_data.status
+    )
+    db.add(log)
+    db.commit()
+    db.refresh(log)
+    return log
 
-@router.get("/getLogs")
-async def get_logs():
-    logs = ["Log1", "Log2", "Log3"]
-    print(logs)
-    return {"logs": logs}
-
-@router.get("/getLog/{log_id}")
-async def get_log(log_id: int):
-    log = f"Log{log_id}"
-    print(log)
-    return {"log": log}
-
-@router.put("/updateLog/{log_id}")
-async def update_log(log_id: int):
-    updated_log = f"Log{log_id} updated successfully"
-    print(updated_log)
-    return {"message": updated_log}
-
-@router.delete("/deleteLog/{log_id}")
-async def delete_log(log_id: int):
-    deleted_log = f"Log{log_id} deleted successfully"
-    print(deleted_log)
-    return {"message": deleted_log}
-
-@router.get("/getLogByName/{log_name}")
-async def get_log_by_name(log_name: str):
-    log = f"Log with name {log_name}"
-    print(log)
-    return {"log": log}
-
+@router.get("/getLogs", response_model=list[LogOut])
+def get_logs(db: Session = Depends(get_db)):
+    return db.query(Log).all()

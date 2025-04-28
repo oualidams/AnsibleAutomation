@@ -27,17 +27,19 @@ import { useWebSocket } from "@/contexts/websocket-context";
 import { Skeleton } from "@/components/ui/skeleton";
 import { mockServerList } from "@/lib/mock-data";
 
+
 export function ExecutePlaybook({ playbook }) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [servers, setServers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedServers, setSelectedServers] = useState([]);
-  const [availableServers, setAvailableServers] = useState([]);
+  const [selectedServers, setSelectedServers] = useState<string[]>([]);
   const [executionId, setExecutionId] = useState<string | null>(null);
   const [monitorOpen, setMonitorOpen] = useState(false);
   const { toast } = useToast();
   const { isConnected, sendMessage, lastMessage, mockMode } = useWebSocket();
+  const [environment, setEnvironment] = useState<string>("all");
+
 
   // Fetch available servers when dialog opens
   useEffect(() => {
@@ -70,14 +72,24 @@ export function ExecutePlaybook({ playbook }) {
     }
   }, [lastMessage, playbook.name, selectedServers.length, toast]);
 
-  const handleServerToggle = (serverId) => {
-    setSelectedServers((prevSelected) => {
-      if (prevSelected.includes(serverId)) {
-        return prevSelected.filter((id) => id !== serverId);
-      } else {
-        return [...prevSelected, serverId];
-      }
-    });
+  // Filter servers based on environment
+  const filteredServers =
+    environment === "all"
+      ? servers
+      : servers.filter((server) => server.environment === environment);
+
+      const handleServerToggle = (serverName) => {
+        setSelectedServers((prevSelected) => {
+          if (prevSelected.includes(serverName)) {
+            return prevSelected.filter((name) => name !== serverName);
+          } else {
+            return [...prevSelected, serverName];
+          }
+        });
+      };
+  // Handle environment filter change
+  const handleEnvironmentChange = (value) => {
+    setEnvironment(value);
   };
 
   const handleExecute = async () => {
@@ -93,10 +105,10 @@ export function ExecutePlaybook({ playbook }) {
     setIsLoading(true);
   
     try {
-      const response = await fetch(`http://localhost:8000/execute/${playbook.id}`, {
+      const response = await fetch(`http://localhost:8000/templates/execute/${playbook.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(selectedServers), // Send selected servers
+        body: JSON.stringify({ selected_servers: selectedServers }),
       });
   
       if (!response.ok) {
@@ -123,7 +135,7 @@ export function ExecutePlaybook({ playbook }) {
       setIsLoading(false);
     }
   };
-
+  
   return (
     <>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -144,7 +156,7 @@ export function ExecutePlaybook({ playbook }) {
           <div className="py-4">
             <div className="mb-4">
               <Label>Environment Filter</Label>
-              <Select defaultValue="all">
+              <Select defaultValue="all" onValueChange={handleEnvironmentChange}>
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Select environment" />
                 </SelectTrigger>
@@ -160,37 +172,26 @@ export function ExecutePlaybook({ playbook }) {
             <div className="mb-4">
               <Label className="mb-2 block">Target Servers</Label>
               <div className="border rounded-md p-3 max-h-60 overflow-y-auto space-y-2">
-  {loading
-    ? // Loading skeletons
-      Array(4)
-        .fill(0)
-        .map((_, i) => (
-          <div key={i} className="flex items-center space-x-2">
-            <Skeleton className="h-4 w-4" />
-            <Skeleton className="h-4 w-40" />
-          </div>
-        ))
-    : servers.map((server) => (
-        <div key={server.id} className="flex items-center space-x-2">
-          <Checkbox
-            id={`server-${server.id}`}
-            checked={selectedServers.includes(server.id)}
-            onCheckedChange={() => handleServerToggle(server.id)}
-          />
-          <Label htmlFor={`server-${server.id}`} className="flex-1">
-            {server.name}
-            <span className="ml-2 text-xs text-muted-foreground">
-              ({server.environment})
-            </span>
-          </Label>
-        </div>
-      ))}
-  {!loading && servers.length === 0 && (
-    <p className="text-sm text-muted-foreground">
-      No servers available.
-    </p>
-  )}
-</div>
+              {filteredServers.map((server) => (
+  <div key={server.id} className="flex items-center space-x-2">
+    <Checkbox
+      id={`server-${server.id}`}
+      onCheckedChange={() => handleServerToggle(server.name)} // Pass server name here
+    />
+    <Label htmlFor={`server-${server.id}`} className="flex-1">
+      {server.name}
+      <span className="ml-2 text-xs text-muted-foreground">
+        ({server.environment})
+      </span>
+    </Label>
+  </div>
+))}
+                {!loading && filteredServers.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    No servers available.
+                  </p>
+                )}
+              </div>
               <div className="mt-2 text-xs text-muted-foreground">
                 {selectedServers.length} server(s) selected
               </div>
@@ -201,7 +202,7 @@ export function ExecutePlaybook({ playbook }) {
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleExecute} disabled={isLoading}>
+            <Button onClick={handleExecute} disabled={isLoading || selectedServers.length === 0}>
               {isLoading ? "Running..." : "Execute Playbook"}
             </Button>
           </DialogFooter>
