@@ -17,10 +17,50 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session, joinedload
 from typing import List
-import subprocess, logging, yaml, os
+import subprocess, logging, yaml, os, re
 
 router = APIRouter()
 
+
+
+def extract_bash_friendly_output(ansible_output: str) -> str:
+    output_lines = ansible_output.splitlines()
+    cleaned_output = []
+    current_task = None
+
+    for line in output_lines:
+        line = line.strip()
+
+        # Skip Ansible playbook headers and boilerplate
+        if line.startswith("PLAY ") or line.startswith("TASK [") or line.startswith("PLAY RECAP"):
+            continue
+        if re.match(r'^(ok:|changed:|skipping:|fatal:|unreachable:)', line):
+            continue
+        if re.match(r'^(localhost\s+:)', line):  # skip recap line
+            continue
+
+        # If it's a simple output (e.g., version command), keep it
+        if line.startswith("ansible "):  
+            cleaned_output.append(f"💬 {line}")
+
+        # Detect task name (optional, in case you want to add a title)
+        task_match = re.match(r'TASK \[(.*?)\]', line)
+        if task_match:
+            current_task = task_match.group(1)
+            cleaned_output.append(f"\n🔧 {current_task}")
+            continue
+
+        if "msg:" in line:
+            cleaned_output.append(f"📥 Output: {line.split('msg:')[1].strip()}")
+        elif "stderr" in line:
+            cleaned_output.append(f"❌ stderr: {line.split('stderr:')[1].strip()}")
+        elif line:
+            cleaned_output.append(f"💬 {line}")
+
+    if not cleaned_output:
+        cleaned_output.append("ℹ️ No significant output captured.")
+
+    return "\n".join(cleaned_output)
 
 
 class ExecuteTemplateRequest(BaseModel):
@@ -78,10 +118,13 @@ def execute_template(template_id: int, request: ExecuteTemplateRequest, db: Sess
 
     # Execute the playbook
     try:
-        command = ["ansible-playbook","-vvv", playbook_path, "-i", inventory_path]
+        command = ["ansible-playbook", playbook_path, "-i", inventory_path]
         process = subprocess.run(command, capture_output=True, text=True)
         status = "success" if process.returncode == 0 else "failed"
-        log_content = process.stdout + "\n" + process.stderr
+
+        raw_output = process.stdout + "\n" + process.stderr
+        log_content = extract_bash_friendly_output(raw_output)
+
     except Exception as e:
         status = "failed"
         log_content = str(e)
@@ -100,10 +143,11 @@ def execute_template(template_id: int, request: ExecuteTemplateRequest, db: Sess
         raise HTTPException(status_code=500, detail=f"Playbook execution failed: {log_content}")
 
     return {
-        "message": "Playbook executed successfully",
+        "message": "✅ Playbook executed successfully",
         "playbook_path": playbook_path,
-        "ansible_output": process.stdout
+        "summary": log_content
     }
+
 
 
 

@@ -312,9 +312,8 @@ ${command} completed with exit code 0.`
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-1">
               <TabsTrigger value="execute">Execute Command</TabsTrigger>
-              <TabsTrigger value="saved">Saved Commands</TabsTrigger>
             </TabsList>
 
             <TabsContent value="execute" className="space-y-4 mt-4">
@@ -447,37 +446,6 @@ ${command} completed with exit code 0.`
                     </>
                   )}
                 </Button>
-              </div>
-
-              <div className="border-t pt-4">
-                <h3 className="font-medium mb-2">Saved Commands</h3>
-                <div className="space-y-2">
-                  {SAVED_COMMANDS.map((savedCommand) => (
-                    <div
-                      key={savedCommand.id}
-                      className="border rounded-md p-3 hover:border-primary cursor-pointer transition-colors"
-                      onClick={() => handleLoadCommand(savedCommand)}
-                    >
-                      <div className="flex justify-between items-center">
-                        <h4 className="font-medium">{savedCommand.name}</h4>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleLoadCommand(savedCommand)
-                          }}
-                        >
-                          Use
-                        </Button>
-                      </div>
-                      <p className="text-sm text-muted-foreground">{savedCommand.description}</p>
-                      <pre className="mt-2 text-xs bg-muted p-2 rounded-sm font-mono overflow-x-auto">
-                        {savedCommand.command}
-                      </pre>
-                    </div>
-                  ))}
-                </div>
               </div>
             </TabsContent>
           </Tabs>

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { BarChart3, Calendar, Cog, Database, LayoutDashboard, PlaySquare, Server, Terminal } from "lucide-react"
+import { BarChart3, Calendar, Cog, Database, LayoutDashboard, PlaySquare, Server, Terminal, File, FileText } from "lucide-react"
 
 const routes = [
   {
@@ -25,12 +25,17 @@ const routes = [
   },
   {
     label: "Configurations",
-    icon: PlaySquare,
+    icon: File,
     href: "/configurations",
   },
   {
-    label: "History",
+    label: "Command line",
     icon: Terminal,
+    href: "/command",
+  },
+  {
+    label: "History",
+    icon: FileText,
     href: "/executions",
   },
   {

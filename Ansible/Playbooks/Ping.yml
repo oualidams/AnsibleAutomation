@@ -1,0 +1,6 @@
+- hosts:
+  - localhost
+  name: Ping
+  tasks:
+  - name: 'Ping '
+    shell: ping localhost

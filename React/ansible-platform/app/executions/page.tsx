@@ -1,10 +1,53 @@
+"use client"
+
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Search, Filter } from "lucide-react"
 import { ExecutionTable } from "@/components/execution-table"
+import { useEffect, useState } from "react"
+
+interface Log {
+  id: number
+  template_id: number
+  server_name: string
+  log_content: string
+  timestamp: string 
+  status: "success" | "failed" 
+}
 
 export default function ExecutionsPage() {
+  const [logs, setLogs] = useState<Log[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchLogs = async () => {
+      try {
+        const response = await fetch("http://localhost:8000/logs/getLogs")
+        if (!response.ok) {
+          throw new Error(`Error: ${response.statusText}`)
+        }
+        const data = await response.json()
+        setLogs(data)
+      } catch (err: any) {
+        setError(err.message || "Failed to fetch logs")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchLogs()
+  }, [])
+
+  if (loading) {
+    return <div>Loading...</div>
+  }
+
+  if (error) {
+    return <div>Error: {error}</div>
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -25,7 +68,7 @@ export default function ExecutionsPage() {
         </Button>
       </div>
 
-      <Tabs defaultValue="all">
+      <Tabs defaultValue="all" onValueChange={(value) => console.log(value)}>
         <TabsList>
           <TabsTrigger value="all">All Executions</TabsTrigger>
           <TabsTrigger value="success">Successful</TabsTrigger>
@@ -33,110 +76,17 @@ export default function ExecutionsPage() {
         </TabsList>
 
         <TabsContent value="all" className="mt-6">
-          <ExecutionTable executions={executions} />
+          <ExecutionTable logs={logs} />
         </TabsContent>
 
         <TabsContent value="success" className="mt-6">
-          <ExecutionTable executions={executions.filter((e) => e.status === "success")} />
+          <ExecutionTable logs={logs.filter((log) => log.status === "success")} />
         </TabsContent>
 
         <TabsContent value="failed" className="mt-6">
-          <ExecutionTable executions={executions.filter((e) => e.status === "failed")} />
+          <ExecutionTable logs={logs.filter((log) => log.status === "failed")} />
         </TabsContent>
       </Tabs>
     </div>
   )
 }
-
-export const executions = [
-  {
-    id: "exec-001",
-    playbook: "Web Server Setup",
-    target: "web-server-01",
-    user: "john.doe",
-    startTime: "2023-06-15 14:32:45",
-    duration: "2m 15s",
-    status: "success",
-    tasks: {
-      total: 12,
-      success: 12,
-      failed: 0,
-      skipped: 0,
-    },
-  },
-  {
-    id: "exec-002",
-    playbook: "Database Backup",
-    target: "db-server-01",
-    user: "system",
-    startTime: "2023-06-15 12:00:00",
-    duration: "1m 45s",
-    status: "success",
-    tasks: {
-      total: 8,
-      success: 8,
-      failed: 0,
-      skipped: 0,
-    },
-  },
-  {
-    id: "exec-003",
-    playbook: "Security Updates",
-    target: "all",
-    user: "jane.smith",
-    startTime: "2023-06-14 18:15:22",
-    duration: "15m 30s",
-    status: "failed",
-    tasks: {
-      total: 24,
-      success: 20,
-      failed: 4,
-      skipped: 0,
-    },
-  },
-  {
-    id: "exec-004",
-    playbook: "Web Server Setup",
-    target: "web-server-02",
-    user: "john.doe",
-    startTime: "2023-06-14 15:10:33",
-    duration: "2m 10s",
-    status: "success",
-    tasks: {
-      total: 12,
-      success: 12,
-      failed: 0,
-      skipped: 0,
-    },
-  },
-  {
-    id: "exec-005",
-    playbook: "Monitoring Setup",
-    target: "monitoring-server-01",
-    user: "jane.smith",
-    startTime: "2023-06-13 11:22:45",
-    duration: "5m 12s",
-    status: "success",
-    tasks: {
-      total: 18,
-      success: 17,
-      failed: 0,
-      skipped: 1,
-    },
-  },
-  {
-    id: "exec-006",
-    playbook: "Docker Deployment",
-    target: "app-server-01",
-    user: "mike.johnson",
-    startTime: "2023-06-12 09:45:12",
-    duration: "3m 55s",
-    status: "failed",
-    tasks: {
-      total: 10,
-      success: 7,
-      failed: 3,
-      skipped: 0,
-    },
-  },
-]
