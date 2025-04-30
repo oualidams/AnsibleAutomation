@@ -65,7 +65,7 @@ def execute_template(template_id: int, request: ExecuteTemplateRequest, db: Sess
         "tasks": tasks
     }]
 
-    # Define paths for the playbook and inventory
+    # Define paths for the playbook and inventorygit 
     playbook_path = f"/home/oualidams/Desktop/AnsibleAutomation/Ansible/Playbooks/{template.name}.yml"
     inventory_path = "/home/oualidams/Desktop/AnsibleAutomation/Ansible/inventory.yml"
 
