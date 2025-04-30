@@ -1,0 +1,6 @@
+- hosts:
+  - localhost
+  name: Create a test file
+  tasks:
+  - name: Create a test file
+    shell: touch /home/oualidams/Desktop/test.txt

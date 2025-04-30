@@ -13,55 +13,80 @@ from pydantic import BaseModel
 from typing import List
 import subprocess
 import logging
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy.orm import Session, joinedload
+from typing import List
+import subprocess, logging, yaml, os
 
 router = APIRouter()
+
+
 
 class ExecuteTemplateRequest(BaseModel):
     selected_servers: List[str]
 
-    logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+def parse_ansible_args(arg_str: str) -> dict:
+    """
+    Convertit une chaîne de type 'name=nginx state=present' en dict Python
+    """
+    args = {}
+    for part in arg_str.split():
+        if '=' in part:
+            key, value = part.split('=', 1)
+            args[key] = value
+    return args
+
 
 @router.post("/execute/{template_id}")
 def execute_template(template_id: int, request: ExecuteTemplateRequest, db: Session = Depends(get_db)):
     selected_servers = request.selected_servers
     template = db.query(Template).options(joinedload(Template.configurations)).filter(Template.id == template_id).first()
+
     if not template:
         raise HTTPException(status_code=404, detail="Template not found")
 
-    playbook_path = f"/home/oualidams/Desktop/AnsibleAutomation/Ansible/{template.name}.yml"
-    inventory_path = "/home/oualidams/Desktop/AnsibleAutomation/Ansible/inventory.yml"
-
+    # Generate the playbook tasks
     tasks = []
     for config in template.configurations:
         tasks.append({
             "name": config.configuration.name,
-            "shell": config.configuration.configuration,
+            "shell": config.configuration.configuration
         })
 
+    # Create the playbook structure
     playbook_content = [{
         "name": template.name,
-        "hosts": "all",
-        "become": True,
+        "hosts": selected_servers,
+        #"become": True,
         "tasks": tasks
     }]
 
+    # Define paths for the playbook and inventory
+    playbook_path = f"/home/oualidams/Desktop/AnsibleAutomation/Ansible/Playbooks/{template.name}.yml"
+    inventory_path = "/home/oualidams/Desktop/AnsibleAutomation/Ansible/inventory.yml"
+
+    # Generate the playbook file
     try:
         with open(playbook_path, "w") as playbook_file:
-            import yaml
             yaml.dump(playbook_content, playbook_file, default_flow_style=False)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate playbook: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to write playbook file: {e}")
 
+    # Execute the playbook
     try:
-        command = ["ansible-playbook", playbook_path, "-i", inventory_path]
+        command = ["ansible-playbook","-vvv", playbook_path, "-i", inventory_path]
         process = subprocess.run(command, capture_output=True, text=True)
         status = "success" if process.returncode == 0 else "failed"
-        log_content = process.stdout if process.returncode == 0 else process.stderr
+        log_content = process.stdout + "\n" + process.stderr
     except Exception as e:
         status = "failed"
         log_content = str(e)
 
+    # Log the execution result in the database
     log = Log(
         template_id=template_id,
         server_name=",".join(selected_servers),
@@ -72,13 +97,15 @@ def execute_template(template_id: int, request: ExecuteTemplateRequest, db: Sess
     db.commit()
 
     if status == "failed":
-        raise HTTPException(status_code=500, detail=f"Ansible playbook execution failed: {log_content}")
+        raise HTTPException(status_code=500, detail=f"Playbook execution failed: {log_content}")
 
     return {
         "message": "Playbook executed successfully",
         "playbook_path": playbook_path,
         "ansible_output": process.stdout
     }
+
+
 
 @router.post("/create", response_model=TemplateOut)
 def create_template(template_data: TemplateCreate, db: Session = Depends(get_db)):

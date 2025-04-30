@@ -1,10 +1,16 @@
-Servers:
-  development:
-  - ip: 192.168.4.80
-    name: nouhassi
-  production:
-  - ip: 192.10.2.1
-    name: prod-server
-  - ip: localhost
-    name: localhost
-  staging: null
+all:
+  children:
+    development:
+      hosts: {}
+    production:
+      hosts:
+        localhost:
+          ansible_become: true
+          ansible_become_method: sudo
+          ansible_become_pass: Hps001002*$*
+          ansible_host: localhost
+          ansible_password: Hps001002*$*
+          ansible_port: 22
+          ansible_user: oualidams
+    staging:
+      hosts: {}

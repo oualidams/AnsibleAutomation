@@ -16,31 +16,39 @@ async def create_server(server: ServerCreate, request: Request, db: Session = De
     db.add(db_server)
     db.commit()
     db.refresh(db_server)
-    
-    # Update inventory.yml
+
+    # Inventory path
     inventory_path = Path("/home/oualidams/Desktop/AnsibleAutomation/Ansible/inventory.yml")
+
+    # Load or initialize the inventory
     if inventory_path.exists():
         with inventory_path.open("r") as file:
-            inventory_data = yaml.safe_load(file)
+            inventory_data = yaml.safe_load(file) or {}
+    else:
+        inventory_data = {}
 
-        # Ensure the environment exists in the inventory
-        environment = server.environment.lower()
-        if environment not in inventory_data["Servers"]:
-            inventory_data["Servers"][environment] = []
+    # Initialize structure
+    if "all" not in inventory_data:
+        inventory_data["all"] = {"children": {}}
+    if server.environment not in inventory_data["all"]["children"]:
+        inventory_data["all"]["children"][server.environment] = {"hosts": {}}
 
-        # Ensure the environment is a list
-        if not isinstance(inventory_data["Servers"][environment], list):
-            inventory_data["Servers"][environment] = []
+    # Add host details
+    host_entry = {
+        "ansible_host": server.ip_address,
+        "ansible_user": server.username,
+        "ansible_password": server.password,
+        "ansible_port": int(server.ssh_port),
+        "ansible_become": True,
+        "ansible_become_method": "sudo",
+        "ansible_become_pass": server.password
+    }
 
-        # Add the server to the environment
-        inventory_data["Servers"][environment].append({
-            "name": server.name,
-            "ip": server.ip_address,
-        })
+    inventory_data["all"]["children"][server.environment]["hosts"][server.name] = host_entry
 
-        # Write the updated inventory back to the file
-        with inventory_path.open("w") as file:
-            yaml.safe_dump(inventory_data, file)
+    # Save back to file
+    with inventory_path.open("w") as file:
+        yaml.safe_dump(inventory_data, file, default_flow_style=False)
 
     return db_server
 

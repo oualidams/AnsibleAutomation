@@ -44,6 +44,7 @@ export function ExecutionTable() {
             <TableHead>Server</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Timestamp</TableHead>
+            <TableHead>Details</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -53,6 +54,7 @@ export function ExecutionTable() {
               <TableCell>{log.server_name}</TableCell>
               <TableCell>{log.status}</TableCell>
               <TableCell>{new Date(log.timestamp).toLocaleString()}</TableCell>
+              <TableCell>{log.log_content}</TableCell>
             </TableRow>
           ))}
         </TableBody>

@@ -1,0 +1,6 @@
+- hosts:
+  - localhost
+  name: Nginx-config
+  tasks:
+  - name: nginx-config
+    shell: server { listen 80; }

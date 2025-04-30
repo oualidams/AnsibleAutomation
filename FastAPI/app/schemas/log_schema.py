@@ -1,3 +1,4 @@
+from typing import Optional
 from pydantic import BaseModel
 from datetime import datetime
 
@@ -10,6 +11,7 @@ class LogCreate(BaseModel):
 class LogOut(LogCreate):
     id: int
     timestamp: datetime
+    template_id: Optional[int]
 
     class Config:
         orm_mode = True
