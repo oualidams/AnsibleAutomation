@@ -1,78 +1,71 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Button } from "@/components/ui/button"
-import { PlusCircle } from "lucide-react"
-import { ServerInitializationWizard } from "@/components/server-initialization-wizard"
-import { CommandExecution } from "@/components/command-execution"
-import { ServerHealthCheck } from "@/components/server-health-check"
+import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ServerTerminal } from "@/components/server-terminal"
 
-interface Server {
-    id: string
-    name: string
-    [key: string]: any 
-  }
+// Mock server data - in a real app, this would come from your API
 
-export default function Home() {
-  const [initWizardOpen, setInitWizardOpen] = useState(false)
-  const [servers, setServers] = useState<Server[]>([])
+
+export default function TerminalPage() {
+  const [selectedServer, setSelectedServer] = useState<string | null>(null)
+  const searchParams = useSearchParams()
+
+  const [servers, setServers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const fetchServers = async () => {
-      try {
-        const response = await fetch("http://localhost:8000/servers/getServers")
-        if (!response.ok) {
-          throw new Error(`Error: ${response.statusText}`)
-        }
-        const data = await response.json()
+    fetch("http://localhost:8000/servers/getServers")
+      .then((res) => res.json())
+      .then((data) => {
         setServers(data)
-      } catch (err: any) {
-        setError(err.message || "Failed to fetch servers")
-      } finally {
         setLoading(false)
-      }
-    }
-
-    fetchServers()
+      })
+      .catch(() => setLoading(false))
   }, [])
 
+
+  const selectedServerData = servers.find((server) => server.id === selectedServer)
+
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Server Management</h1>
-          <p className="text-muted-foreground">Manage, monitor, and configure your servers</p>
-        </div>
-        <Button className="gap-2" onClick={() => setInitWizardOpen(true)}>
-          <PlusCircle className="h-4 w-4" />
-          Initialize New Server
-        </Button>
+    <div className="container mx-auto py-6 space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold">Terminal Access</h1>
       </div>
 
-      <Tabs defaultValue="commands">
-        <TabsList>
-          <TabsTrigger value="commands">Commands</TabsTrigger>
-          <TabsTrigger value="health">Health Checks</TabsTrigger>
-        </TabsList>
+      <Card>
+        <CardHeader>
+          <CardTitle>Server Terminal</CardTitle>
+          <CardDescription>Connect to a server and execute commands directly in the terminal</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-6">
+            <div>
+              <label className="text-sm font-medium mb-2 block">Select Server</label>
+              <Select value={selectedServer || ""} onValueChange={(value) => setSelectedServer(value)}>
+                <SelectTrigger className="w-full md:w-[300px]">
+                  <SelectValue placeholder="Select a server" />
+                </SelectTrigger>
+                <SelectContent>
+                  {servers.map((server) => (
+                    <SelectItem key={server.id} value={server.id}>
+                      {server.name} ({server.ip_address}) - {server.os}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-        <TabsContent value="commands" className="mt-6">
-          <CommandExecution servers={servers} />
-        </TabsContent>
-
-        <TabsContent value="health" className="mt-6">
-          <ServerHealthCheck servers={servers} />
-        </TabsContent>
-
-        <TabsContent value="servers" className="mt-6">
-          <div className="text-center py-12 text-muted-foreground">Server inventory view will be displayed here</div>
-        </TabsContent>
-      </Tabs>
-
-      <ServerInitializationWizard open={initWizardOpen} onOpenChange={setInitWizardOpen} />
+            {selectedServerData ? (
+              <ServerTerminal server={selectedServerData} />
+            ) : (
+              <div className="text-center p-8 text-muted-foreground">Select a server to access its terminal</div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }
-

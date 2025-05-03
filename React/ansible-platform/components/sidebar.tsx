@@ -29,7 +29,7 @@ const routes = [
     href: "/configurations",
   },
   {
-    label: "Command line",
+    label: "Terminal",
     icon: Terminal,
     href: "/command",
   },
