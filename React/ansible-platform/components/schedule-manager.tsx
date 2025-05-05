@@ -272,7 +272,7 @@ export function ScheduleManager() {
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
-              <TableHead>Playbook</TableHead>
+              <TableHead>Template</TableHead>
               <TableHead>Target</TableHead>
               <TableHead>Schedule</TableHead>
               <TableHead>Next Run</TableHead>
@@ -324,7 +324,7 @@ export function ScheduleManager() {
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>Create Scheduled Task</DialogTitle>
-            <DialogDescription>Schedule a playbook to run automatically</DialogDescription>
+            <DialogDescription>Schedule a template to run automatically</DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
@@ -339,13 +339,13 @@ export function ScheduleManager() {
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="schedule-playbook">Playbook</Label>
+              <Label htmlFor="schedule-playbook">Template</Label>
               <Select
                 value={newSchedule.playbook}
                 onValueChange={(value) => setNewSchedule({ ...newSchedule, playbook: value })}
               >
                 <SelectTrigger id="schedule-playbook">
-                  <SelectValue placeholder="Select a playbook" />
+                  <SelectValue placeholder="Select a template" />
                 </SelectTrigger>
                 <SelectContent>
                   {playbooks.map((playbook) => (

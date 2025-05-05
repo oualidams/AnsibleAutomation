@@ -24,43 +24,61 @@ router = APIRouter()
 
 
 def extract_bash_friendly_output(ansible_output: str) -> str:
+    """
+    Extracts and formats only the actual shell command outputs from Ansible output,
+    hiding Ansible-specific lines. Suitable for users familiar with Linux/bash.
+    """
     output_lines = ansible_output.splitlines()
     cleaned_output = []
-    current_task = None
+    current_command = None
+    in_command_output = False
+    command_output = []
 
     for line in output_lines:
         line = line.strip()
 
-        # Skip Ansible playbook headers and boilerplate
-        if line.startswith("PLAY ") or line.startswith("TASK [") or line.startswith("PLAY RECAP"):
-            continue
-        if re.match(r'^(ok:|changed:|skipping:|fatal:|unreachable:)', line):
-            continue
-        if re.match(r'^(localhost\s+:)', line):  # skip recap line
-            continue
-
-        # If it's a simple output (e.g., version command), keep it
-        if line.startswith("ansible "):  
-            cleaned_output.append(f"💬 {line}")
-
-        # Detect task name (optional, in case you want to add a title)
-        task_match = re.match(r'TASK \[(.*?)\]', line)
-        if task_match:
-            current_task = task_match.group(1)
-            cleaned_output.append(f"\n🔧 {current_task}")
+        # Skip Ansible headers and status lines
+        if (
+            line.startswith("PLAY ") or
+            line.startswith("TASK [") or
+            line.startswith("PLAY RECAP") or
+            line.startswith("included:") or
+            line.startswith("skipping:") or
+            line.startswith("fatal:") or
+            line.startswith("ok:") or
+            line.startswith("changed:") or
+            line.startswith("unreachable:") or
+            line.startswith("RUNNING HANDLER")
+        ):
             continue
 
-        if "msg:" in line:
-            cleaned_output.append(f"📥 Output: {line.split('msg:')[1].strip()}")
-        elif "stderr" in line:
-            cleaned_output.append(f"❌ stderr: {line.split('stderr:')[1].strip()}")
-        elif line:
-            cleaned_output.append(f"💬 {line}")
+        # Detect the start of a shell command (optional: customize this for your playbooks)
+        if line.startswith("+ "):  # Bash prints commands with '+ ' when using set -x
+            if command_output:
+                cleaned_output.append("Command Output:\n" + "\n".join(command_output))
+                command_output = []
+            current_command = line[2:]
+            cleaned_output.append(f"$ {current_command}")
+            in_command_output = True
+            continue
+
+        # Collect output lines
+        if in_command_output:
+            if line:
+                command_output.append(line)
+        else:
+            # Sometimes output is not prefixed, just collect non-empty lines
+            if line:
+                command_output.append(line)
+
+    # Append any remaining output
+    if command_output:
+        cleaned_output.append("Command Output:\n" + "\n".join(command_output))
 
     if not cleaned_output:
-        cleaned_output.append("ℹ️ No significant output captured.")
+        cleaned_output.append("ℹ️ No command output captured.")
 
-    return "\n".join(cleaned_output)
+    return "\n\n".join(cleaned_output)
 
 
 class ExecuteTemplateRequest(BaseModel):

@@ -39,6 +39,11 @@ const routes = [
     href: "/executions",
   },
   {
+    label: "Schedules",
+    icon: Calendar,
+    href: "/schedules",
+  },
+  {
     label: "Settings",
     icon: Cog,
     href: "/settings",
