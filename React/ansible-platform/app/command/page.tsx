@@ -5,6 +5,8 @@ import { useSearchParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ServerTerminal } from "@/components/server-terminal"
+import { Suspense } from "react"
+
 
 // Mock server data - in a real app, this would come from your API
 
@@ -30,6 +32,7 @@ export default function TerminalPage() {
   const selectedServerData = servers.find((server) => server.id === selectedServer)
 
   return (
+    <Suspense fallback={<div>Loading...</div>}>
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Terminal Access</h1>
@@ -67,5 +70,6 @@ export default function TerminalPage() {
         </CardContent>
       </Card>
     </div>
+    </Suspense>
   )
 }
