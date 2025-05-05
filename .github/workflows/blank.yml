@@ -10,8 +10,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       # Set up Python for FastAPI
       - name: Set up Python
@@ -22,6 +24,10 @@ jobs:
       - name: Install FastAPI dependencies
         run: |
           cd FastAPI
+          if [ ! -f requirements.txt ]; then
+            echo "requirements.txt not found. Creating a placeholder."
+            echo "# Add your dependencies here" > requirements.txt
+          fi
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
@@ -36,13 +42,13 @@ jobs:
           cd React/ansible-platform
           npm install
 
-      # Run backend tests (if you have any)
+      # Run backend tests (if available)
       - name: Run FastAPI tests
         run: |
           cd FastAPI
           pytest || echo "No tests found"
 
-      # Run frontend build and tests (if you have any)
+      # Build frontend and run tests
       - name: Build React app
         run: |
           cd React/ansible-platform
