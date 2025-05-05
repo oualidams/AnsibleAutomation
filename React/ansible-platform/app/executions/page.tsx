@@ -68,7 +68,7 @@ export default function ExecutionsPage() {
         </Button>
       </div>
 
-      <Tabs defaultValue="all" onValueChange={(value) => console.log(value)}>
+      <Tabs defaultValue="all">
         <TabsList>
           <TabsTrigger value="all">All Executions</TabsTrigger>
           <TabsTrigger value="success">Successful</TabsTrigger>
