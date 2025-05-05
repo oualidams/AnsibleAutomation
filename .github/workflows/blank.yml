@@ -52,7 +52,7 @@ jobs:
       - name: Build React app
         run: |
           cd React/ansible-platform
-          npm run dev
+          npm run build
 
       - name: Run React tests
         run: |
