@@ -1,0 +1,8 @@
+- hosts:
+  - localhost
+  name: Creating a file and a folder
+  tasks:
+  - name: Create a test folder
+    shell: mkdir /home/oualidams/Desktop/test
+  - name: Create a test file
+    shell: touch /home/oualidams/Desktop/test.txt

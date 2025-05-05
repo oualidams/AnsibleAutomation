@@ -1,0 +1,7 @@
+- hosts:
+  - localhost
+  name: Install htop
+  tasks:
+  - name: Install htop
+    shell: "- name: Install htop\n  apt:\n    name: htop\n    state: present\n  become:\
+      \ true"

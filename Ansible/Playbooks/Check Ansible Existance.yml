@@ -1,0 +1,6 @@
+- hosts:
+  - localhost
+  name: Check Ansible Existance
+  tasks:
+  - name: 'Check Ansible Existance '
+    shell: ansible --version

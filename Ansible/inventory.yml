@@ -1,0 +1,16 @@
+all:
+  children:
+    development:
+      hosts: {}
+    production:
+      hosts:
+        localhost:
+          ansible_become: true
+          ansible_become_method: sudo
+          ansible_become_pass: Hps001002*$*
+          ansible_host: localhost
+          ansible_password: Hps001002*$*
+          ansible_port: 22
+          ansible_user: oualidams
+    staging:
+      hosts: {}
