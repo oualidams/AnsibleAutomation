@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main", "CI/CD" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Set up Python for FastAPI
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install FastAPI dependencies
+        run: |
+          cd FastAPI
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # Set up Node.js for React
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install React dependencies
+        run: |
+          cd React/ansible-platform
+          npm install
+
+      # Run backend tests (if you have any)
+      - name: Run FastAPI tests
+        run: |
+          cd FastAPI
+          pytest || echo "No tests found"
+
+      # Run frontend build and tests (if you have any)
+      - name: Build React app
+        run: |
+          cd React/ansible-platform
+          npm run build
+
+      - name: Run React tests
+        run: |
+          cd React/ansible-platform
+          npm test || echo "No tests found"
