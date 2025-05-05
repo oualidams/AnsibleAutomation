@@ -26,8 +26,7 @@ export default function RootLayout({
           <WebSocketProvider>
             <div className="flex min-h-screen">
               <Sidebar />
-              <main className="flex-1 p-6 md:p-8 pt-6 overflow-y-auto">{children}</main>
-            </div>
+              <main className="flex-1 p-6 md:p-8 pt-6 md:ml-5 overflow-y-auto">{children}</main>            </div>
             <Toaster />
           </WebSocketProvider>
         </ThemeProvider>
