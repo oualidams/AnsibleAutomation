@@ -40,7 +40,7 @@ jobs:
       - name: Install React dependencies
         run: |
           cd React/ansible-platform
-          npm install
+          npm install --force
 
       # Run backend tests (if available)
       - name: Run FastAPI tests
