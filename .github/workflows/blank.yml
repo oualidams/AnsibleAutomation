@@ -22,8 +22,8 @@ jobs:
           python-version: '3.11'
 
       - name: Install FastAPI dependencies
+        working-directory: FastAPI
         run: |
-          cd FastAPI
           if [ ! -f requirements.txt ]; then
             echo "requirements.txt not found. Creating a placeholder."
             echo "# Add your dependencies here" > requirements.txt
@@ -38,26 +38,25 @@ jobs:
           node-version: '18'
 
       - name: Install React dependencies
-        run: |
-          cd React/ansible-platform
-          npm install --force
+        working-directory: React/ansible-platform
+        run: npm install --force
 
       # Run backend tests (if available)
       - name: Run FastAPI with Uvicorn to check server start
+        shell: bash
         run: |
           cd FastAPI/app
-          uvicorn main:app --host 127.0.0.1 --port 8000 --reload &
+          uvicorn main:app --host 127.0.0.1 --port 8000 &
+          SERVER_PID=$!
           sleep 5
-          curl --fail http://127.0.0.1:8000/docs || (echo "Uvicorn server failed to start" && exit 1)
-
+          curl --fail http://127.0.0.1:8000/docs || (echo "Uvicorn server failed to start" && kill $SERVER_PID && exit 1)
+          kill $SERVER_PID
 
       # Build frontend and run tests
       - name: Build React app
-        run: |
-          cd React/ansible-platform
-          npm run build
+        working-directory: React/ansible-platform
+        run: npm run build
 
       - name: Run React tests
-        run: |
-          cd React/ansible-platform
-          npm test || echo "No tests found"
+        working-directory: React/ansible-platform
+        run: npm test -- --watchAll=false || echo "No tests found"
