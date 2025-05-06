@@ -43,10 +43,13 @@ jobs:
           npm install --force
 
       # Run backend tests (if available)
-      - name: Run FastAPI tests
+      - name: Run FastAPI with Uvicorn to check server start
         run: |
           cd FastAPI
-          pytest || echo "No tests found"
+          uvicorn main:app --host 127.0.0.1 --port 8000 --reload &
+          sleep 5
+          curl --fail http://127.0.0.1:8000/docs || (echo "Uvicorn server failed to start" && exit 1)
+
 
       # Build frontend and run tests
       - name: Build React app
