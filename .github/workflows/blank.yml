@@ -22,7 +22,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install FastAPI dependencies
-        working-directory: FastAPI
+        working-directory: FastAPI/app
         run: |
           if [ ! -f requirements.txt ]; then
             echo "requirements.txt not found. Creating a placeholder."
