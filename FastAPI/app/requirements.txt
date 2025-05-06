@@ -5,3 +5,4 @@ alembic
 pydantic
 requests
 python-multipart
+PyYAML
