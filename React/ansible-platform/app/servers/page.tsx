@@ -12,6 +12,7 @@ export default function ServersPage() {
   const [addServerModalOpen, setAddServerModalOpen] = useState(false)
   const [servers, setServers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState("")
 
   useEffect(() => {
     fetch("http://localhost:8000/servers/getServers")
@@ -22,6 +23,17 @@ export default function ServersPage() {
       })
       .catch(() => setLoading(false))
   }, [])
+
+  // Filter servers by name, ip_address, or project
+  const filteredServers = servers.filter((server) => {
+    const searchLower = search.toLowerCase()
+    return (
+      !search ||
+      server.name?.toLowerCase().includes(searchLower) ||
+      server.ip_address?.toLowerCase().includes(searchLower) ||
+      server.project?.toLowerCase().includes(searchLower)
+    )
+  })
 
   return (
     <div className="flex flex-col gap-6">
@@ -39,7 +51,13 @@ export default function ServersPage() {
       <div className="flex items-center gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input type="search" placeholder="Search servers..." className="pl-8 bg-background" />
+          <Input
+            type="search"
+            placeholder="Search servers..."
+            className="pl-8 bg-background"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
         <Button variant="outline">Filter</Button>
       </div>
@@ -53,19 +71,19 @@ export default function ServersPage() {
         </TabsList>
 
         <TabsContent value="all" className="mt-6">
-          {loading ? <div>Loading...</div> : <ServerTable servers={servers} />}
+          {loading ? <div>Loading...</div> : <ServerTable servers={filteredServers} />}
         </TabsContent>
 
         <TabsContent value="production" className="mt-6">
-          <ServerTable servers={servers.filter((s) => s.environment === "production")} />
+          <ServerTable servers={filteredServers.filter((s) => s.environment === "production")} />
         </TabsContent>
 
         <TabsContent value="staging" className="mt-6">
-          <ServerTable servers={servers.filter((s) => s.environment === "staging")} />
+          <ServerTable servers={filteredServers.filter((s) => s.environment === "staging")} />
         </TabsContent>
 
         <TabsContent value="development" className="mt-6">
-          <ServerTable servers={servers.filter((s) => s.environment === "development")} />
+          <ServerTable servers={filteredServers.filter((s) => s.environment === "development")} />
         </TabsContent>
       </Tabs>
       <ServerInitializationWizard open={addServerModalOpen} onOpenChange={setAddServerModalOpen} />

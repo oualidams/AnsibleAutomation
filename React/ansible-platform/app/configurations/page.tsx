@@ -12,7 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreVertical } from "lucide-react";
+import { MoreVertical, Search } from "lucide-react";
 
 export function PlaybookEditor({ onCreate }: { onCreate: (template: any) => void }) {
   const [open, setOpen] = useState(false);
@@ -87,6 +87,8 @@ export default function PlaybooksPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedConfig, setSelectedConfig] = useState<any | null>(null);
   const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
+  const [search, setSearch] = useState(""); // <-- Add this
+
 
   const fetchTemplates = async () => {
     setIsLoading(true);
@@ -156,6 +158,10 @@ export default function PlaybooksPage() {
     }
   };
 
+  const filteredPlaybooks = playbooks.filter((config) =>
+    config.name?.toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex justify-between items-center">
@@ -165,9 +171,21 @@ export default function PlaybooksPage() {
         </div>
         <PlaybookEditor onCreate={handleCreateTemplate} />
       </div>
+      <div className="flex items-center gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="search"
+            placeholder="Search configurations by name..."
+            className="pl-8 bg-background"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          /></div>
+        <Button variant="outline">Filter</Button>
+      </div>
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {playbooks.map((config) => (
+        {filteredPlaybooks.map((config) => (
           <div key={config.id} className="relative group border rounded-lg p-4 bg-white shadow">
             <div className="absolute top-2 right-2">
               <DropdownMenu>

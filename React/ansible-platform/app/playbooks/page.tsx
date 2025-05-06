@@ -21,7 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/components/ui/use-toast";
-import { MoreVertical } from "lucide-react";
+import { MoreVertical, Search } from "lucide-react";
 import { CardFooter } from "@/components/ui/card";
 import { ExecutePlaybook } from "@/components/execute-playbook";
 
@@ -184,6 +184,8 @@ export default function PlaybooksPage() {
   const [configNames, setConfigNames] = useState<Map<number, string>>(
     new Map()
   );
+  const [search, setSearch] = useState(""); // <-- Add this
+
 
   const fetchTemplates = async () => {
     setIsLoading(true);
@@ -308,6 +310,10 @@ export default function PlaybooksPage() {
     setIsDialogOpen(true);
   };
 
+  const filteredPlaybooks = playbooks.filter((playbook) =>
+    playbook.name?.toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -321,19 +327,25 @@ export default function PlaybooksPage() {
         </div>
         <PlaybookEditor onCreate={handleCreateTemplate} />
       </div>
+      <div className="flex items-center gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="search"
+            placeholder="Search templates by name..."
+            className="pl-8 bg-background"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          /></div>
+        <Button variant="outline">Filter</Button>
+      </div>
 
       <Tabs defaultValue="all">
-        <div className="flex justify-between items-center">
-          <TabsList>
-            <TabsTrigger value="all">All Templates</TabsTrigger>
-            <TabsTrigger value="recent">Recently Run</TabsTrigger>
-            <TabsTrigger value="favorites">Favorites</TabsTrigger>
-          </TabsList>
-        </div>
+        
 
         <TabsContent value="all" className="mt-6">
   <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-    {playbooks.map((playbook) => (
+    {filteredPlaybooks.map((playbook) => (
       <div key={playbook.id} className="relative group border rounded-lg p-4 bg-white shadow">
         <div className="absolute top-2 right-2">
           <DropdownMenu>

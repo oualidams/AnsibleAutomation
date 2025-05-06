@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { MoreHorizontal, PlayCircle, Terminal, BarChart3 } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 interface Server {
   id: string;
@@ -28,6 +29,7 @@ interface Server {
 export function ServerTable({ servers }: { servers: Server[] }) {
   const [selectedServer, setSelectedServer] = useState<Server | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const router = useRouter(); 
 
   const handleViewDetails = (server: Server) => {
     setSelectedServer(server)
@@ -74,7 +76,7 @@ export function ServerTable({ servers }: { servers: Server[] }) {
                       <DropdownMenuItem onClick={() => handleViewDetails(server)}>View details</DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem>Run playbook</DropdownMenuItem>
-                      <DropdownMenuItem>SSH terminal</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => router.push("/command")}>SSH terminal</DropdownMenuItem>
                       <DropdownMenuItem>View metrics</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -131,7 +133,7 @@ export function ServerTable({ servers }: { servers: Server[] }) {
                   <PlayCircle className="h-4 w-4" />
                   Run Playbook
                 </Button>
-                <Button className="gap-2" size="sm" variant="outline">
+                <Button className="gap-2" size="sm" variant="outline" onClick={() => router.push("/command")}>
                   <Terminal className="h-4 w-4" />
                   SSH Terminal
                 </Button>

@@ -5,7 +5,13 @@ import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { BarChart3, Calendar, Cog, Database, LayoutDashboard, PlaySquare, Server, Terminal, Menu } from "lucide-react"
+import { BarChart3, Calendar, Cog, Database, LayoutDashboard, PlaySquare, ServerIcon as ServerStack, Terminal, Boxes,
+  FileCode,
+  CalendarClock,
+  History,
+  Settings,
+  Sliders,
+  Menu,} from "lucide-react"
 import { useState, useEffect } from "react"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 
@@ -17,37 +23,44 @@ const routes = [
   },
   {
     label: "Servers",
-    icon: Server,
+    icon: ServerStack,
     href: "/servers",
+  },
+  {
+    label: "Templates",
+    icon: FileCode,
+    href: "/playbooks",
+  },
+  {
+    label: "Configurations",
+    icon: Sliders,
+    href: "/configurations",
+  },
+  {
+    label: "Inventory",
+    icon: Boxes,
+    href: "/inventory",
+  },
+  
+  {
+    label: "Schedules",
+    icon: CalendarClock,
+    href: "/schedules",
   },
   {
     label: "Terminal",
     icon: Terminal,
     href: "/command",
   },
+  
   {
-    label: "Inventory",
-    icon: Database,
-    href: "/inventory",
-  },
-  {
-    label: "Teplates",
-    icon: PlaySquare,
-    href: "/playbooks",
-  },
-  {
-    label: "Schedules",
-    icon: Calendar,
-    href: "/schedules",
-  },
-  {
-    label: "Executions",
-    icon: Terminal,
+    label: "History",
+    icon: History,
     href: "/executions",
   },
   {
     label: "Settings",
-    icon: Cog,
+    icon: Settings,
     href: "/settings",
   },
 ]
