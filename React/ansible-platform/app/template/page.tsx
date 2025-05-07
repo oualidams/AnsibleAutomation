@@ -184,7 +184,16 @@ export default function PlaybooksPage() {
   const [configNames, setConfigNames] = useState<Map<number, string>>(
     new Map()
   );
-  const [search, setSearch] = useState(""); // <-- Add this
+  const [search, setSearch] = useState("");
+  const [editingPlaybook, setEditingPlaybook] = useState<any | null>(null);
+const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+const [editForm, setEditForm] = useState({
+  name: "",
+  description: "",
+  configurations: [] as number[],
+});
+const [allConfigurations, setAllConfigurations] = useState<any[]>([]);
+
 
 
   const fetchTemplates = async () => {
@@ -262,6 +271,76 @@ export default function PlaybooksPage() {
     } catch (error) {
       console.error(`Error fetching configuration name for ID ${id}:`, error);
       return `Unknown Configuration (ID: ${id})`;
+    }
+  };
+  const fetchAllConfigurations = async () => {
+    try {
+      const response = await fetch("http://localhost:8000/configurations/getConfigs");
+      if (!response.ok) throw new Error("Failed to fetch configurations");
+      const data = await response.json();
+      setAllConfigurations(data);
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch configurations.",
+      });
+    }
+  };
+  const handleEditPlaybook = (playbook: any) => {
+    setEditingPlaybook(playbook);
+    setEditForm({
+      name: playbook.name,
+      description: playbook.description,
+      configurations: playbook.configurations.map((c: any) => c.configuration.id),
+    });
+    setIsEditDialogOpen(true);
+    fetchAllConfigurations();
+  };
+  
+  const handleEditInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setEditForm((prev) => ({ ...prev, [name]: value }));
+  };
+  
+  const handleEditConfigChange = (id: number, checked: boolean) => {
+    setEditForm((prev) => ({
+      ...prev,
+      configurations: checked
+        ? [...prev.configurations, id]
+        : prev.configurations.filter((cid) => cid !== id),
+    }));
+  };
+  
+  const handleUpdatePlaybook = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPlaybook) return;
+    setIsLoading(true);
+    try {
+      const template = {
+        name: editForm.name,
+        description: editForm.description,
+        configurations: editForm.configurations.map((id, idx) => ({
+          id,
+          position: idx + 1,
+        })),
+      };
+      const response = await fetch(
+        `http://localhost:8000/templates/updateTemplate/${editingPlaybook.id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(template),
+        }
+      );
+      if (!response.ok) throw new Error("Update failed");
+      toast({ title: "Updated", description: "Template updated successfully." });
+      setIsEditDialogOpen(false);
+      fetchTemplates();
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "Update failed." });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -358,6 +437,9 @@ export default function PlaybooksPage() {
               <DropdownMenuItem onClick={() => handleCardClick(playbook)}>
                 View Details
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleEditPlaybook(playbook)}>
+                Update
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleDeleteTemplate(playbook)}>
                 Delete
               </DropdownMenuItem>
@@ -441,8 +523,60 @@ export default function PlaybooksPage() {
         </DialogHeader>
       </div>
     )}
+    
   </DialogContent>
 </Dialog>
+{editingPlaybook && (
+  <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+    <DialogContent className="sm:max-w-[600px]">
+      <DialogHeader>
+        <DialogTitle>Edit Template</DialogTitle>
+      </DialogHeader>
+      <form onSubmit={handleUpdatePlaybook} className="space-y-4">
+        <div>
+          <Label htmlFor="edit-name">Template Name</Label>
+          <Input
+            id="edit-name"
+            name="name"
+            value={editForm.name}
+            onChange={handleEditInputChange}
+            required
+          />
+        </div>
+        <div>
+          <Label htmlFor="edit-description">Description</Label>
+          <Input
+            id="edit-description"
+            name="description"
+            value={editForm.description}
+            onChange={handleEditInputChange}
+            required
+          />
+        </div>
+        <div>
+          <Label>Configurations</Label>
+          <div className="space-y-2">
+            {allConfigurations.map((config) => (
+              <div key={config.id} className="flex items-center gap-2">
+                <Checkbox
+                  id={`edit-config-${config.id}`}
+                  checked={editForm.configurations.includes(config.id)}
+                  onCheckedChange={(checked) =>
+                    handleEditConfigChange(config.id, checked as boolean)
+                  }
+                />
+                <Label htmlFor={`edit-config-${config.id}`}>{config.name}</Label>
+              </div>
+            ))}
+          </div>
+        </div>
+        <Button type="submit" disabled={isLoading}>
+          {isLoading ? "Updating..." : "Update Template"}
+        </Button>
+      </form>
+    </DialogContent>
+  </Dialog>
+)}
 
     </div>
   );

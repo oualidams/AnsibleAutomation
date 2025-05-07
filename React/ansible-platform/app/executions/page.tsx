@@ -89,7 +89,7 @@ export default function ExecutionsPage() {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <button
             type="button"
-            className="absolute right-10 top-1.5 h-5 w-5 text-muted-foreground"
+            className="absolute right-7 top-1.5 h-1 w-1 text-muted-foreground"
             onClick={() => dateInputRef.current?.showPicker()}
             aria-label="Pick a date"
             style={{ background: "none", border: "none", padding: 0 }}
@@ -103,7 +103,7 @@ export default function ExecutionsPage() {
             onChange={(e) => setDate(e.target.value)}
             style={{
               position: "absolute",
-              right: 36,
+              right: 20,
               top: 8,
               width: 24,
               height: 24,

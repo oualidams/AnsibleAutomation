@@ -29,19 +29,13 @@ const routes = [
   {
     label: "Templates",
     icon: FileCode,
-    href: "/playbooks",
+    href: "/template",
   },
   {
     label: "Configurations",
     icon: Sliders,
     href: "/configurations",
   },
-  {
-    label: "Inventory",
-    icon: Boxes,
-    href: "/inventory",
-  },
-  
   {
     label: "Schedules",
     icon: CalendarClock,
@@ -50,7 +44,7 @@ const routes = [
   {
     label: "Terminal",
     icon: Terminal,
-    href: "/command",
+    href: "/terminal",
   },
   
   {

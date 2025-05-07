@@ -88,6 +88,14 @@ export default function PlaybooksPage() {
   const [selectedConfig, setSelectedConfig] = useState<any | null>(null);
   const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
   const [search, setSearch] = useState(""); // <-- Add this
+  const [editingConfig, setEditingConfig] = useState<any | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    description: "",
+    module: "",
+    configuration: "",
+  });
 
 
   const fetchTemplates = async () => {
@@ -158,6 +166,46 @@ export default function PlaybooksPage() {
     }
   };
 
+  const handleUpdateConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingConfig) return;
+    setIsLoading(true);
+    try {
+      const response = await fetch(
+        `http://localhost:8000/configurations/updateConfig/${editingConfig.id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(editForm),
+        }
+      );
+      if (!response.ok) throw new Error("Update failed");
+      toast({ title: "Updated", description: "Configuration updated successfully." });
+      setIsEditDialogOpen(false);
+      fetchTemplates();
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "Update failed." });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEditConfig = (config: any) => {
+    setEditingConfig(config);
+    setEditForm({
+      name: config.name,
+      description: config.description,
+      module: config.module,
+      configuration: config.configuration,
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleEditInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setEditForm((prev) => ({ ...prev, [name]: value }));
+  };
+
   const filteredPlaybooks = playbooks.filter((config) =>
     config.name?.toLowerCase().includes(search.toLowerCase())
   );
@@ -198,6 +246,9 @@ export default function PlaybooksPage() {
                   <DropdownMenuItem onClick={() => handleViewDetails(config)}>
                     View Details
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleEditConfig(config)}>
+                    Update
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleDeleteConfig(config)}>
                     Delete
                   </DropdownMenuItem>
@@ -226,6 +277,33 @@ export default function PlaybooksPage() {
               <p><strong>Module:</strong> {selectedConfig.module}</p>
               <p><strong>Command:</strong> {selectedConfig.configuration}</p>
             </div>
+          </DialogContent>
+        </Dialog>
+      )}
+      {/* Edit Dialog */}
+      {editingConfig && (
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Configuration</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleUpdateConfig} className="space-y-4">
+              {["name", "description", "module", "configuration"].map((field) => (
+                <div key={field}>
+                  <Label htmlFor={`edit-${field}`}>{field.charAt(0).toUpperCase() + field.slice(1)}</Label>
+                  <Input
+                    id={`edit-${field}`}
+                    name={field}
+                    value={editForm[field as keyof typeof editForm]}
+                    onChange={handleEditInputChange}
+                    required
+                  />
+                </div>
+              ))}
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? "Updating..." : "Update"}
+              </Button>
+            </form>
           </DialogContent>
         </Dialog>
       )}
