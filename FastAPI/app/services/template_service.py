@@ -175,6 +175,7 @@ def execute_template(template_id: int, request: ExecuteTemplateRequest, db: Sess
 
 
 
+
 @router.post("/create", response_model=TemplateOut)
 def create_template(template_data: TemplateCreate, db: Session = Depends(get_db)):
     template = Template(
@@ -206,12 +207,10 @@ def get_templates(db: Session = Depends(get_db)):
 
 @router.get("/getTemplate/{template_id}", response_model=TemplateOut)
 def get_template(template_id: int, db: Session = Depends(get_db)):
-    if template_id is None:
-        raise HTTPException(status_code=400, detail="Template ID cannot be null")
     template = db.query(Template).options(joinedload(Template.configurations)).filter(Template.id == template_id).first()
     if not template:
         raise HTTPException(status_code=404, detail="Template not found")
-    return template 
+    return template
 
 @router.put("/updateTemplate/{template_id}", response_model=TemplateOut)
 def update_template(template_id: int, template_data: TemplateCreate, db: Session = Depends(get_db)):
