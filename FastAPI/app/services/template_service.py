@@ -138,6 +138,12 @@ def execute_template(template_id: int, request: ExecuteTemplateRequest, db: Sess
     try:
         command = ["ansible-playbook", playbook_path, "-i", inventory_path]
         process = subprocess.run(command, capture_output=True, text=True)
+
+        # Print the raw terminal output for debugging
+        print("=== Terminal Output ===")
+        print(process.stdout)
+        print(process.stderr)
+
         status = "success" if process.returncode == 0 else "failed"
 
         raw_output = process.stdout + "\n" + process.stderr
@@ -146,6 +152,7 @@ def execute_template(template_id: int, request: ExecuteTemplateRequest, db: Sess
     except Exception as e:
         status = "failed"
         log_content = str(e)
+
 
     # Log the execution result in the database
     log = Log(
