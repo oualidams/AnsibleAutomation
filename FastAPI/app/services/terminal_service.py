@@ -1,7 +1,9 @@
 import asyncio
 import paramiko
 import re
+import subprocess
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+
 
 router = APIRouter()
 
@@ -41,7 +43,26 @@ async def ssh_terminal(websocket: WebSocket, server_ip: str, username: str, pass
         async def read_from_websocket():
             while True:
                 data = await websocket.receive_text()
+
+                if data.startswith("__COMPLETE__:"):
+                    partial = data.replace("__COMPLETE__:", "").strip()
+
+                    try:
+                        suggestions = subprocess.check_output(
+                            f"bash -c 'compgen -cdfa {partial}'",
+                            shell=True,
+                            text=True
+                        )
+                        suggestions_list = suggestions.strip().split("\n")
+                        await websocket.send_text("__SUGGESTIONS__:" + "\n".join(suggestions_list))
+                    except subprocess.CalledProcessError as e:
+                        await websocket.send_text("__SUGGESTIONS__:")  # empty suggestions
+                    continue  # ⚠️ prevent falling through
+
+                # Send real user input to SSH
                 channel.send(data)
+
+
 
         # Run both functions concurrently
         await asyncio.gather(read_from_ssh(), read_from_websocket())

@@ -38,7 +38,7 @@ export default function TerminalClient() {
                 <SelectContent>
                   {servers.map((server) => (
                     <SelectItem key={server.id} value={server.id}>
-                      {server.name} ({server.ip}) - {server.os}
+                      {server.name} ({server.ip_address}) - {server.os}
                     </SelectItem>
                   ))}
                 </SelectContent>
