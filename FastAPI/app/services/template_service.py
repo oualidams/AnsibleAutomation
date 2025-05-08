@@ -146,19 +146,19 @@ def execute_template(template_id: int, request: ExecuteTemplateRequest, db: Sess
 
         status = "success" if process.returncode == 0 else "failed"
 
+        # Combine stdout and stderr for logging
         raw_output = process.stdout + "\n" + process.stderr
-        log_content = extract_bash_friendly_output(raw_output)
+        log_content = raw_output  # Store the full terminal output in log_content
 
     except Exception as e:
         status = "failed"
-        log_content = str(e)
-
+        log_content = f"Error: {str(e)}"
 
     # Log the execution result in the database
     log = Log(
         template_id=template_id,
         server_name=",".join(selected_servers),
-        log_content=log_content,
+        log_content=log_content,  # Save the terminal output in the log
         status=status
     )
     db.add(log)
@@ -170,9 +170,8 @@ def execute_template(template_id: int, request: ExecuteTemplateRequest, db: Sess
     return {
         "message": "✅ Playbook executed successfully",
         "playbook_path": playbook_path,
-        "summary": log_content
+        "summary": log_content  # Include the terminal output in the response
     }
-
 
 
 
@@ -207,10 +206,12 @@ def get_templates(db: Session = Depends(get_db)):
 
 @router.get("/getTemplate/{template_id}", response_model=TemplateOut)
 def get_template(template_id: int, db: Session = Depends(get_db)):
+    if template_id is None:
+        raise HTTPException(status_code=400, detail="Template ID cannot be null")
     template = db.query(Template).options(joinedload(Template.configurations)).filter(Template.id == template_id).first()
     if not template:
         raise HTTPException(status_code=404, detail="Template not found")
-    return template
+    return template 
 
 @router.put("/updateTemplate/{template_id}", response_model=TemplateOut)
 def update_template(template_id: int, template_data: TemplateCreate, db: Session = Depends(get_db)):

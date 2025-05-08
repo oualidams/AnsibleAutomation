@@ -7,19 +7,12 @@ import { ServerTerminal } from "@/components/server-terminal";
 
 export default function TerminalClient() {
   const [selectedServer, setSelectedServer] = useState<string | null>(null);
-  const searchParams = useSearchParams();
-
   const [servers, setServers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetch("http://localhost:8000/servers/getServers")
       .then((res) => res.json())
-      .then((data) => {
-        setServers(data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+      .then((data) => setServers(data));
   }, []);
 
   const selectedServerData = servers.find((server) => server.id === selectedServer);
@@ -45,7 +38,7 @@ export default function TerminalClient() {
                 <SelectContent>
                   {servers.map((server) => (
                     <SelectItem key={server.id} value={server.id}>
-                      {server.name} ({server.ip_address}) - {server.os}
+                      {server.name} ({server.ip}) - {server.os}
                     </SelectItem>
                   ))}
                 </SelectContent>

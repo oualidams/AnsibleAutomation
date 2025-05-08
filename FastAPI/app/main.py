@@ -1,13 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from configuration.config import SessionLocal
-from services import user_service, server_service, template_service, log_service, cmd_service
+from services import user_service, server_service, template_service, log_service, cmd_service, terminal_service
 from configuration.database import Base, engine
 from models.server import Server  # Import models to register
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY
-from fastapi import Request
+from fastapi import Request,WebSocket,FastAPI
+from services.terminal_service import ssh_terminal
 
 Base.metadata.create_all(bind=engine)
 
@@ -24,6 +25,10 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         status_code=HTTP_422_UNPROCESSABLE_ENTITY,
         content={"detail": exc.errors()},
     )
+
+@app.websocket("/ws/terminal")
+async def terminal_endpoint(websocket: WebSocket, server_ip: str, username: str, password: str):
+    await ssh_terminal(websocket, server_ip, username, password)
 
 # CORS configuration
 origins = [
@@ -43,7 +48,9 @@ app.include_router(user_service.router, prefix="/users", tags=["Users"])
 app.include_router(server_service.router, prefix="/servers", tags=["Servers"])
 app.include_router(template_service.router, prefix="/templates", tags=["Templates"])
 app.include_router(log_service.router, prefix="/logs", tags=["Logs"])
-app.include_router(cmd_service.router, prefix="/configurations", tags=["Configurations"])
+app.include_router(cmd_service.router, prefix="/configurations", tags=["Configurations"])   
+app.include_router(terminal_service.router, prefix="/terminal", tags=["Terminal"])
+
 
 @app.get("/")
 async def root():

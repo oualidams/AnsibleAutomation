@@ -1,0 +1,6 @@
+- hosts:
+  - localhost
+  name: RAM Usage
+  tasks:
+  - name: 'RAM Usage '
+    shell: free -h

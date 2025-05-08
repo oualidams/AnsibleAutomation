@@ -44,18 +44,24 @@ export default function ExecutionsPage() {
 
   useEffect(() => {
     const uniqueTemplateIds = Array.from(new Set(logs.map(log => log.template_id)))
-    uniqueTemplateIds.forEach((id) => {
-      if (!templateNames[id]) {
-        fetch(`http://localhost:8000/templates/getTemplate/${id}`)
-          .then(res => res.json())
-          .then(template => {
-            setTemplateNames(prev => ({
-              ...prev,
-              [id]: template.name,
-            }))
-          })
-      }
-    })
+    uniqueTemplateIds
+      .filter((id) => id !== null && id !== undefined) // Filter out invalid IDs
+      .forEach((id) => {
+        if (!templateNames[id]) {
+          fetch(`http://localhost:8000/templates/getTemplate/${id}`)
+            .then(res => {
+              if (!res.ok) throw new Error(`Failed to fetch template with ID ${id}`)
+              return res.json()
+            })
+            .then(template => {
+              setTemplateNames(prev => ({
+                ...prev,
+                [id]: template.name,
+              }))
+            })
+            .catch(err => console.error(err.message))
+        }
+      })
   }, [logs, templateNames])
 
   const filteredLogs = logs.filter((log) => {
